@@ -338,6 +338,12 @@ QMemTags
   ** New gdb.connections() function that returns a list of all
      currently active connections.
 
+  ** New gdb.TargetConnection.send_remote_packet(STRING) method.  This
+     is equivalent to the existing 'maint packet' CLI command; it
+     allows a user specified packet to be sent to the remote target.
+     If this method is called on a TargetConnection that is not of
+     type 'remote' or 'extended-remote' then an exception is thrown.
+
 *** Changes in GDB 10
 
 * There are new feature names for ARC targets: "org.gnu.gdb.arc.core"

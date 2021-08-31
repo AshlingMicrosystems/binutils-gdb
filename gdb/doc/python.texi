@@ -5974,7 +5974,7 @@ To get the connection for a single @code{gdb.Inferior} read its
 @code{gdb.Inferior.connection} attribute
 (@pxref{gdbpy_inferior_connection,,gdb.Inferior.connection}).
 
-A @code{gdb.TargetConnection} has the following method:
+A @code{gdb.TargetConnection} has the following methods:
 
 @defun TargetConnection.is_valid ()
 Return @code{True} if the @code{gdb.TargetConnection} object is valid,
@@ -5984,6 +5984,27 @@ will happen when all the inferiors using that connection exit.
 
 Reading any of the @code{gdb.TargetConnection} properties will throw
 an exception if the connection is invalid.
+@end defun
+
+@defun TargetConnection.send_remote_packet (@var{packet})
+When the connection object is using @value{GDBN}'s remote serial
+protocol (@pxref{Remote Protocol}), i.e. the
+@code{TargetConnection.type} is @samp{remote} or
+@samp{extended-remote}, then this method sends @var{packet}, which
+should be a string, to the remote target and returns the response
+packet as a string.
+
+This is equivalent to the @code{maintenance packet} command
+(@pxref{maint packet,,maintenance packet command}).
+
+If the connection is of any other type then an exception of type
+@code{gdb.error} is thrown.  If @var{packet} is not a string, or is
+the empty string, then an exception of type @code{gdb.error} is
+thrown.
+
+The prefix, suffix, and checksum (as required by the remote serial
+protocol) are automatically added to the outgoing packet, and removed
+from the incoming packet before the reply is returned.
 @end defun
 
 A @code{gdb.TargetConnection} has the following read-only properties:

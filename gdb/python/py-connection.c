@@ -26,6 +26,8 @@
 #include "py-events.h"
 #include "py-event.h"
 #include "arch-utils.h"
+#include "remote.h"
+#include "charset.h"
 
 #include <map>
 
@@ -286,6 +288,90 @@ gdbpy_initialize_connection (void)
   return 0;
 }
 
+/* Set of callbacks used to implement gdb.send_remote_packet.  */
+
+struct py_send_packet_callbacks : public send_remote_packet_callbacks
+{
+  /* Constructor, initialise the result to None.  */
+
+  py_send_packet_callbacks ()
+    : m_result (Py_None)
+  { /* Nothing.  */ }
+
+  /* There's nothing to do when the packet is sent.  */
+
+  void sending (const char *args) override
+  { /* Nothing.  */ }
+
+  /* When the result is returned create a Python string and assign this
+     into the result member variable.  */
+
+  void received (const gdb::char_vector &buf) override
+  {
+    /* Return None when we don't get back a useful result.  */
+    if (buf.data ()[0] != '\0')
+      m_result = gdbpy_ref<> (PyUnicode_Decode (buf.data (),
+						strlen (buf.data ()),
+						host_charset (), NULL));
+  }
+
+  /* Get a reference to the result as a Python object.  */
+
+  gdbpy_ref<> result () const
+  {
+    return m_result;
+  }
+
+private:
+
+  /* A reference to a valid result value.  This is initialized in the
+     constructor, and so will always point to a valid value, even if this
+     is just None.  */
+
+  gdbpy_ref<> m_result;
+};
+
+/* Implement TargetConnection.send_remote_packet function.  Send a packet
+   to the target identified by SELF.  The connection must still be valid,
+   and must be a remote or extended-remote connection otherwise an
+   exception will be thrown.  */
+
+static PyObject *
+connpy_send_remote_packet (PyObject *self, PyObject *args, PyObject *kw)
+{
+  connection_object *conn = (connection_object *) self;
+
+  CONNPY_REQUIRE_VALID (conn);
+
+  static const char *keywords[] = {"packet", nullptr};
+  const char *packet_str = nullptr;
+
+  if (!gdb_PyArg_ParseTupleAndKeywords (args, kw, "s", keywords,
+					&packet_str))
+    return nullptr;
+
+  if (packet_str == nullptr || *packet_str == '\0')
+    {
+      PyErr_SetString (PyExc_ValueError, _("Invalid remote packet"));
+      return nullptr;
+    }
+
+  try
+    {
+      scoped_restore_current_thread restore_thread;
+      switch_to_target_no_thread (conn->target);
+
+      py_send_packet_callbacks callbacks;
+      send_remote_packet (packet_str, &callbacks);
+      return callbacks.result ().release ();
+    }
+  catch (const gdb_exception &except)
+    {
+      gdbpy_convert_exception (except);
+      return NULL;
+    }
+}
+
 /* Global initialization for this file.  */
 
 void _initialize_py_connection ();
@@ -303,6 +389,10 @@ static PyMethodDef connection_object_methods[] =
   { "is_valid", connpy_is_valid, METH_NOARGS,
     "is_valid () -> Boolean.\n\
 Return true if this TargetConnection is valid, false if not." },
+  { "send_remote_packet", (PyCFunction) connpy_send_remote_packet,
+    METH_VARARGS | METH_KEYWORDS,
+    "send_remote_packet (PACKET) -> String\n\
+Send PACKET to a remote target, return the reply as a string." },
   { NULL }
 };
 
