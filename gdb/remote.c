@@ -956,8 +956,6 @@ public: /* Remote specific methods.  */
 
   bool vcont_r_supported ();
 
-  void packet_command (const char *args, int from_tty);
-
 private: /* data fields */
 
   /* The remote state.  Don't reference this directly.  Use the
@@ -11595,34 +11593,59 @@ remote_target::memory_map ()
   return result;
 }
 
-static void
-packet_command (const char *args, int from_tty)
+/* Set of callbacks used to implement the 'maint packet' command.  */
+
+struct cli_packet_command_callbacks : public send_remote_packet_callbacks
 {
-  remote_target *remote = get_current_remote_target ();
+  /* Called before the packet is sent.  PACKET_STR is the packet content
+     before the protocol specific prefix, suffix, and escaping is added.  */
 
-  if (remote == nullptr)
-    error (_("command can only be used with remote target"));
+  void sending (const char *packet_str) override
+  {
+    puts_filtered ("sending: ");
+    print_packet (packet_str);
+    puts_filtered ("\n");
+  }
 
-  remote->packet_command (args, from_tty);
-}
+  /* Called with BUF, the reply from the remote target.  */
+
+  void received (const gdb::char_vector &buf) override
+  {
+    puts_filtered ("received: ");
+    print_packet (buf.data ());
+    puts_filtered ("\n");
+  }
+};
+
+/* See remote.h.  */
 
 void
-remote_target::packet_command (const char *args, int from_tty)
+send_remote_packet (const char *packet_str,
+		    send_remote_packet_callbacks *callbacks)
 {
-  if (!args)
-    error (_("remote-packet command requires packet text as argument"));
+  if (packet_str == nullptr || *packet_str == '\0')
+    error (_("a remote packet must not be empty"));
 
-  puts_filtered ("sending: ");
-  print_packet (args);
-  puts_filtered ("\n");
-  putpkt (args);
+  remote_target *remote = get_current_remote_target ();
+  if (remote == nullptr)
+    error (_("packets can only be sent to a remote target"));
 
-  remote_state *rs = get_remote_state ();
+  callbacks->sending (packet_str);
 
-  getpkt (&rs->buf, 0);
-  puts_filtered ("received: ");
-  print_packet (rs->buf.data ());
-  puts_filtered ("\n");
+  remote->putpkt (packet_str);
+  remote_state *rs = remote->get_remote_state ();
+  remote->getpkt (&rs->buf, 0);
+
+  callbacks->received (rs->buf);
+}
+
+/* Entry point for the 'maint packet' command.  */
+
+static void
+cli_packet_command (const char *args, int from_tty)
+{
+  cli_packet_command_callbacks cb;
+  send_remote_packet (args, &cb);
 }
 
 #if 0
@@ -14901,7 +14924,7 @@ Argument is a single section name (default: all loaded sections).\n\
 To compare only read-only loaded sections, specify the -r option."),
 	   &cmdlist);
 
-  add_cmd ("packet", class_maintenance, packet_command, _("\
+  add_cmd ("packet", class_maintenance, cli_packet_command, _("\
 Send an arbitrary packet to a remote target.\n\
    maintenance packet TEXT\n\
 If GDB is talking to an inferior via the GDB serial protocol, then\n\

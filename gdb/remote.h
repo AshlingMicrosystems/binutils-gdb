@@ -78,4 +78,38 @@ extern int remote_register_number_and_offset (struct gdbarch *gdbarch,
 extern void remote_notif_get_pending_events (remote_target *remote,
 					     struct notif_client *np);
 extern bool remote_target_is_non_stop_p (remote_target *t);
+
+/* An abstract class that represents the set of callbacks that are made
+   from the send_remote_packet function (declared below).  */
+
+struct send_remote_packet_callbacks
+{
+  /* The SENDING callback is called once send_remote_packet has performed
+     its error checking and setup, just before the packet is sent to the
+     remote target.  PACKET_STR is the content of the packet that will be
+     sent (before any of the protocol specific prefix, suffix, or escaping
+     is applied).  */
+
+  virtual void sending (const char *packet_str) = 0;
+
+  /* The RECEIVED callback is called once a reply has been received from
+     the remote target.  The content of the reply is in BUF which can't be
+     modified, and which is not guaranteed to remain valid after the
+     RECEIVED call has returned.  If you need to preserve the contents of
+     BUF then a copy should be taken.  */
+
+  virtual void received (const gdb::char_vector &buf) = 0;
+};
+
+/* Send PACKET_STR the current remote target.  If PACKET_STR is nullptr, or
+   is the empty string, then an error is thrown.  If the current target is
+   not a remote target then an error is thrown.
+
+   Calls CALLBACKS->sending() just before the packet is sent to the remote
+   target, and calls CALLBACKS->received() with the reply once this is
+   received from the remote target.  */
+
+extern void send_remote_packet (const char *packet_str,
+				send_remote_packet_callbacks *callbacks);
+
 #endif
