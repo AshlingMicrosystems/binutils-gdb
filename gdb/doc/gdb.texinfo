@@ -39241,6 +39241,7 @@ demangler warnings always create a core file and this cannot be
 disabled.
 @end table
 
+@anchor{maint packet}
 @kindex maint packet
 @item maint packet @var{text}
 If @value{GDBN} is talking to an inferior via the serial protocol,
