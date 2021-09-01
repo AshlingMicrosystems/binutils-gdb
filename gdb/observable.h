@@ -251,6 +251,9 @@ extern observable<> source_styling_changed;
 
 extern observable<> current_source_symtab_and_line_changed;
 
+/* When a connection is removed.  */
+extern observable<process_stratum_target */* target */> connection_removed;
+
 } /* namespace observers */
 
 } /* namespace gdb */
