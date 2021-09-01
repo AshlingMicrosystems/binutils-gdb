@@ -322,6 +322,22 @@ QMemTags
        optional, its default value is None.  If MEMORY_SOURCE is not
        None then it must be an object that has a 'read_memory' method.
 
+  ** New gdb.TargetConnection object type that represents a connection
+     (as displayed by the 'info connections' command).
+
+  ** The gdb.Inferior type now has a 'connection' property which is an
+     instance of gdb.TargetConnection, the connection used by this
+     inferior.  This can be None if the inferior has no connection
+     (for example, when exited).
+
+  ** New 'gdb.events.connection_removed' event registry, which emits a
+     'gdb.ConnectionEvent' when a connection is removed from GDB.
+     This event has a 'connection' property, a gdb.TargetConnection
+     object for the connection being removed.
+
+  ** New gdb.connections() function that returns a list of all
+     currently active connections.
+
 *** Changes in GDB 10
 
 * There are new feature names for ARC targets: "org.gnu.gdb.arc.core"
