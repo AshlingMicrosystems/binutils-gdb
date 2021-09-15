@@ -282,6 +282,10 @@ QMemTags
      Window object implements the click method, it is called for each
      mouse click event in this window.
 
+  ** New function gdb.architecture_names(), which returns a list
+     containing all of the possible Architecture.name() values.  Each
+     entry is a string.
+
 *** Changes in GDB 10
 
 * There are new feature names for ARC targets: "org.gnu.gdb.arc.core"
