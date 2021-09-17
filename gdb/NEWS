@@ -286,6 +286,42 @@ QMemTags
      containing all of the possible Architecture.name() values.  Each
      entry is a string.
 
+  ** New Python API for wrapping GDB's disassembler:
+
+     - gdb.disassembler.register_disassembler(DISASSEMBLER, ARCH).
+       DISASSEMBLER is a sub-class of gdb.disassembler.Disassembler.
+       ARCH is either None or a string containing a bfd architecture
+       name.  DISASSEMBLER is registered as a disassembler for
+       architecture ARCH, or for all architectures if ARCH is None.
+       The previous disassembler registered for ARCH is returned, this
+       can be None if no previous disassembler was registered.
+
+     - gdb.disassembler.Disassembler is the class from which all
+       disassemblers should inherit.  Its constructor takes a string,
+       a name for the disassembler, which is currently only used is
+       some debug output.  Sub-classes should override the __call__
+       method to perform disassembly, invoking __call__ on this base
+       class will raise an exception.
+
+     - gdb.disassembler.DisassembleInfo is the class used to describe
+       a single disassembly request from GDB.  An instace of this
+       class is passed to the __call__ method of
+       gdb.disassembler.Disassembler and has the following read-only
+       attributes: 'address', 'string', 'length', 'architecture',
+       'can_emit_style_escape', and the following methods
+       'read_memory', 'set_result', and 'memory error'.
+
+     - gdb.disassembler.format_address(ARCHITECTURE, ADDRESS), formats
+       an address into a string so that the string can be included in
+       the disassembler output.  ARCHITECTURE is a gdb.Architecture
+       object.
+
+     - gdb.disassembler.builtin_disassemble(INFO, MEMORY_SOURCE),
+       calls GDB's builtin disassembler on INFO, which is a
+       gdb.disassembler.DisassembleInfo object.  MEMORY_SOURCE is
+       optional, its default value is None.  If MEMORY_SOURCE is not
+       None then it must be an object that has a 'read_memory' method.
+
 *** Changes in GDB 10
 
 * There are new feature names for ARC targets: "org.gnu.gdb.arc.core"

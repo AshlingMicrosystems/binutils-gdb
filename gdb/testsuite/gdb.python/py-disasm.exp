@@ -1,0 +1,201 @@
+# Copyright (C) 2021 Free Software Foundation, Inc.
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+# This file is part of the GDB testsuite.  It validates the Python
+# disassembler API.
+
+load_lib gdb-python.exp
+
+standard_testfile
+
+if { [prepare_for_testing "failed to prepare" ${testfile} ${srcfile} "debug"] } {
+    return -1
+}
+
+# Skip all tests if Python scripting is not enabled.
+if { [skip_python_tests] } { continue }
+
+if ![runto_main] then {
+    fail "can't run to main"
+    return 0
+}
+
+set pyfile [gdb_remote_download host ${srcdir}/${subdir}/${testfile}.py]
+
+gdb_test "source ${pyfile}" "Python script imported" \
+         "import python scripts"
+
+gdb_breakpoint [gdb_get_line_number "Break here."]
+gdb_continue_to_breakpoint "Break here."
+
+set curr_pc [get_valueof "/x" "\$pc" "*unknown*"]
+
+gdb_test_no_output "python current_pc = ${curr_pc}"
+
+# The current pc will be something like 0x1234 with no leading zeros.
+# However, in the disassembler output addresses are padded with zeros.
+# This substitution changes 0x1234 to 0x0*1234, which can then be used
+# as a regexp in the disassembler output matching.
+set curr_pc_pattern [string replace ${curr_pc} 0 1 "0x0*"]
+
+# Grab the name of the current architecture, this is used in the tests
+# patterns below.
+set curr_arch [get_python_valueof "gdb.selected_inferior().architecture().name()" "*unknown*"]
+
+# Helper proc that removes all registered disassemblers.
+proc py_remove_all_disassemblers {} {
+    gdb_test_no_output "python remove_all_python_disassemblers()"
+}
+
+# A list of test plans.  Each plan is a list of two elements, the
+# first element is the name of a class in py-disasm.py, this is a
+# disassembler class.  The second element is a pattern that should be
+# matched in the disassembler output.
+#
+# Each different disassembler tests some different feature of the
+# Python disassembler API.
+set addr_pattern "\r\n=> ${curr_pc_pattern} <\[^>\]+>:\\s+"
+set base_pattern "${addr_pattern}nop"
+set test_plans \
+    [list \
+	 [list "" "${base_pattern}\r\n.*"] \
+	 [list "GlobalNullDisassembler" "${base_pattern}\r\n.*"] \
+	 [list "GlobalPreInfoDisassembler" "${base_pattern}\\s+## ad = $hex, st = None, le = None, ar = ${curr_arch}\r\n.*"] \
+	 [list "GlobalPostInfoDisassembler" "${base_pattern}\\s+## ad = $hex, st = nop, le = $decimal, ar = ${curr_arch}\r\n.*"] \
+	 [list "GlobalEscDisassembler" "${base_pattern}\\s+## style = False\r\n.*"] \
+	 [list "GlobalReadDisassembler" "${base_pattern}\\s+## bytes =( $hex)+\r\n.*"] \
+	 [list "GlobalAddrDisassembler" "${base_pattern}\\s+## addr = ${curr_pc_pattern} <\[^>\]+>\r\n.*"] \
+	 [list "SimpleMemoryErrorDisassembler" "${addr_pattern}Cannot access memory at address ${curr_pc_pattern}"] \
+	 [list "NonMemoryErrorEarlyDisassembler" "${addr_pattern}Python Exception <class 'gdb\\.GdbError'>: error before setting a result\r\nnop\r\n.*"] \
+	 [list "NonMemoryErrorLateDisassembler" "${addr_pattern}Python Exception <class 'gdb\\.GdbError'>: error after setting a result\r\nnop\r\n.*"] \
+	 [list "MemoryErrorEarlyDisassembler" "${base_pattern}\r\n.*"] \
+	 [list "MemoryErrorLateDisassembler" "${base_pattern}\r\n.*"] \
+	 [list "CaughtMemoryErrorEarlyDisassembler" "${addr_pattern}Cannot access memory at address 0x2"] \
+	 [list "CaughtMemoryErrorLateDisassembler" "${addr_pattern}Cannot access memory at address 0x2"] \
+	 [list "CaughtMemoryErrorEarlyAndReplaceDisassembler" "${base_pattern}\\s+## tag = GOT MEMORY ERROR\r\n.*"] \
+	 [list "SetResultBeforeBuiltinDisassembler" "${base_pattern}\r\n.*"]]
+
+# Now execute each test plan.
+foreach plan $test_plans {
+    set global_disassembler_name [lindex $plan 0]
+    set expected_pattern [lindex $plan 1]
+
+    with_test_prefix "global_disassembler=${global_disassembler_name}" {
+	# Remove all existing disassemblers.
+	py_remove_all_disassemblers
+
+	# If we have a disassembler to load, do it now.
+	if { $global_disassembler_name != "" } {
+	    gdb_test_no_output "python add_global_disassembler($global_disassembler_name)"
+	}
+
+	# Disassemble main, and check the disassembler output.
+	gdb_test "disassemble main" $expected_pattern
+    }
+}
+
+# Check that the architecture specific disassemblers can override the
+# global disassembler.
+#
+# First, register a global disassembler, and check it is in place.
+with_test_prefix "GLOBAL tagging disassembler" {
+    py_remove_all_disassemblers
+    gdb_test_no_output "python gdb.disassembler.register_disassembler(TaggingDisassembler(\"GLOBAL\"), None)"
+    gdb_test "disassemble main" "${base_pattern}\\s+## tag = GLOBAL\r\n.*"
+}
+
+# Now register an architecture specific disassembler, and check it
+# overrides the global disassembler.
+with_test_prefix "LOCAL tagging disassembler" {
+    gdb_test_no_output "python gdb.disassembler.register_disassembler(TaggingDisassembler(\"LOCAL\"), \"${curr_arch}\")"
+    gdb_test "disassemble main" "${base_pattern}\\s+## tag = LOCAL\r\n.*"
+}
+
+# Now remove the architecture specific disassembler, and check that
+# the global disassembler kicks back in.
+with_test_prefix "GLOBAL tagging disassembler again" {
+    gdb_test_no_output "python gdb.disassembler.register_disassembler(None, \"${curr_arch}\")"
+    gdb_test "disassemble main" "${base_pattern}\\s+## tag = GLOBAL\r\n.*"
+}
+
+# Check that a DisassembleInfo becomes invalid after the call into the
+# disassembler.
+with_test_prefix "DisassembleInfo becomes invalid" {
+    py_remove_all_disassemblers
+    gdb_test_no_output "python add_global_disassembler(GlobalCachingDisassembler)"
+    gdb_test "disassemble main" "${base_pattern}\\s+## CACHED\r\n.*"
+    gdb_test "python GlobalCachingDisassembler.check()" "PASS"
+}
+
+# Test the memory source aspect of the builtin disassembler.
+with_test_prefix "memory source api" {
+    py_remove_all_disassemblers
+    gdb_test_no_output "python gdb.disassembler.register_disassembler(analyzing_disassembler)"
+    gdb_test "disassemble main" "${base_pattern}\r\n.*"
+    gdb_test "python analyzing_disassembler.find_replacement_candidate()" \
+	"Replace from $hex to $hex with NOP"
+    gdb_test "disassemble main" "${base_pattern}\r\n.*" \
+	"second disassembler pass"
+    gdb_test "python analyzing_disassembler.check()" \
+	"PASS"
+}
+
+# The syntax highlighting disassembler makes use of the pygments
+# module.  Try importing the module now, if this fails then we can
+# skip the tests that check the syntax highlighting.
+gdb_test_multiple "python import pygments" "" {
+    -re "ModuleNotFoundError: No module named 'pygments'.*$gdb_prompt $" {
+	set pygments_module_available false
+    }
+    -re "ImportError: No module named pygments.*$gdb_prompt $" {
+	set pygments_module_available false
+    }
+    -re "^python import pygments\r\n$gdb_prompt $" {
+	set pygments_module_available true
+    }
+}
+
+if { $pygments_module_available } {
+    # Test the syntax highlighting disassembler.
+    with_test_prefix "syntax highlighting" {
+	py_remove_all_disassemblers
+	save_vars { env(TERM) } {
+	    # We need an ANSI-capable terminal to get the output.
+	    setenv TERM ansi
+
+	    clean_restart ${binfile}
+
+	    if ![runto_main] then {
+		fail "can't run to main"
+		return 0
+	    }
+
+	    gdb_test "source ${pyfile}" "Python script imported" \
+		"import python scripts"
+
+	    gdb_breakpoint [gdb_get_line_number "Break here."]
+	    gdb_continue_to_breakpoint "Break here."
+
+	    gdb_test_no_output "python current_pc = ${curr_pc}"
+
+	    gdb_test_no_output "python add_global_disassembler(GlobalColorDisassembler)"
+	    set styled_nop "\033\\\[\[0-9\]+(;\[0-9\]+)?mnop\033\\\[\[^m\]+m"
+	    set styled_address [style "${curr_pc_pattern}" address]
+	    gdb_test "disassemble main" "\r\n=> ${styled_address} <\[^>\]+>:\\s+${styled_nop}\r\n.*"
+	}
+    }
+} else {
+    untested "disassemble with styling"
+}

@@ -41,6 +41,7 @@ struct ui_file;
 class gdb_disassembler
 {
   using di_read_memory_ftype = decltype (disassemble_info::read_memory_func);
+  using di_memory_error_ftype = decltype (disassemble_info::memory_error_func);
 
 public:
   gdb_disassembler (struct gdbarch *gdbarch, struct ui_file *file)
@@ -59,10 +60,20 @@ public:
 
 protected:
   gdb_disassembler (struct gdbarch *gdbarch, struct ui_file *file,
-		    di_read_memory_ftype func);
+		    di_read_memory_ftype read_memory_func)
+    : gdb_disassembler (gdbarch, file, read_memory_func,
+			dis_asm_memory_error)
+  { /* Nothing.  */ }
+
+  gdb_disassembler (struct gdbarch *gdbarch, struct ui_file *file,
+		    di_read_memory_ftype read_memory_func,
+		    di_memory_error_ftype memory_error_func);
 
   struct ui_file *stream ()
   { return (struct ui_file *) m_di.stream; }
+
+  struct disassemble_info *disasm_info ()
+  { return &m_di; }
 
 private:
   struct gdbarch *m_gdbarch;

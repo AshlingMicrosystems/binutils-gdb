@@ -497,6 +497,8 @@ int gdbpy_initialize_auto_load (void)
   CPYCHECKER_NEGATIVE_RESULT_SETS_EXCEPTION;
 int gdbpy_initialize_values (void)
   CPYCHECKER_NEGATIVE_RESULT_SETS_EXCEPTION;
+int gdbpy_initialize_disasm (void)
+  CPYCHECKER_NEGATIVE_RESULT_SETS_EXCEPTION;
 int gdbpy_initialize_frames (void)
   CPYCHECKER_NEGATIVE_RESULT_SETS_EXCEPTION;
 int gdbpy_initialize_instruction (void)
@@ -797,5 +799,24 @@ typedef std::unique_ptr<Py_buffer, Py_buffer_deleter> Py_buffer_up;
 
 extern bool gdbpy_parse_register_id (struct gdbarch *gdbarch,
 				     PyObject *pyo_reg_id, int *reg_num);
+
+/* Implement the 'print_insn' hook for Python.  Disassemble an instruction
+   whose address is ADDRESS for architecture GDBARCH.  The bytes of the
+   instruction should be read with INFO->read_memory_func as the
+   instruction being disassembled might actually be in a buffer.
+
+   Used INFO->fprintf_func to print the results of the disassembly, and
+   return the length of the instruction in octets.
+
+   If no instruction can be disassembled then return an empty value.  */
+
+extern gdb::optional<int> gdbpy_print_insn (struct gdbarch *gdbarch,
+					    CORE_ADDR address,
+					    disassemble_info *info);
+
+/* Return true if OBJ is a gdb.Architecture object, otherwise, return
+   false.  */
+
+bool gdbpy_is_arch_object (PyObject *obj);
 
 #endif /* PYTHON_PYTHON_INTERNAL_H */

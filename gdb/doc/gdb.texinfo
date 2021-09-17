@@ -26046,6 +26046,20 @@ then it will be used.
 
 @item show style sources
 Show the current state of source code styling.
+
+@item set style disassembly @samp{on|off}
+Enable or disable disassembly styling.  This affects whether
+disassembly output, such as the output of the @code{disassemble}
+command, is styled.  The default is @samp{on}.  Note that disassembly
+styling only works if styling in general is enabled, and if a source
+highlighting library is available to @value{GDBN}.
+
+To highlight disassembly output @value{GDBN} must be compiled with
+Python support, and the Python Pygments package must be available,
+
+@item show style disassembly
+Show the current state of disassembly styling.
+
 @end table
 
 Subcommands of @code{set style} control specific forms of styling.

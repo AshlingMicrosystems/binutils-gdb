@@ -188,7 +188,7 @@ const struct extension_language_ops python_extension_ops =
 
   gdbpy_colorize,
 
-  NULL, /* gdbpy_print_insn, */
+  gdbpy_print_insn,
 };
 
 /* Architecture and language to be used in callbacks from
@@ -1815,6 +1815,7 @@ do_start_initialization ()
 
   if (gdbpy_initialize_auto_load () < 0
       || gdbpy_initialize_values () < 0
+      || gdbpy_initialize_disasm () < 0
       || gdbpy_initialize_frames () < 0
       || gdbpy_initialize_commands () < 0
       || gdbpy_initialize_instruction () < 0
@@ -2043,6 +2044,14 @@ do_initialize (const struct extension_language_defn *extlang)
 	 warning.  */
       return true;
     }
+
+  /* Import gdb.disassembler now.  The disassembler module provides some
+     parameters that we want to be available to users from the moment GDB
+     starts up.  */
+  PyObject *gdb_disassembler_module
+    = PyImport_ImportModule ("gdb.disassembler");
+  if (gdb_disassembler_module == nullptr)
+    gdbpy_print_stack ();
 
   return gdb_pymodule_addobject (m, "gdb", gdb_python_module) >= 0;
 }
