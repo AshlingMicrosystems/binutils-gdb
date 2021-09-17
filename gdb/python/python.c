@@ -187,6 +187,8 @@ const struct extension_language_ops python_extension_ops =
   gdbpy_get_matching_xmethod_workers,
 
   gdbpy_colorize,
+
+  NULL, /* gdbpy_print_insn, */
 };
 
 /* Architecture and language to be used in callbacks from

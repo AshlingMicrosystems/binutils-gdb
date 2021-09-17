@@ -893,6 +893,26 @@ ext_lang_colorize (const std::string &filename, const std::string &contents)
   return result;
 }
 
+/* See extension.h.  */
+
+gdb::optional<int>
+ext_lang_print_insn (struct gdbarch *gdbarch, CORE_ADDR address,
+		     struct disassemble_info *info)
+{
+  for (const struct extension_language_defn *extlang : extension_languages)
+    {
+      if (extlang->ops == nullptr
+	  || extlang->ops->print_insn == nullptr)
+	continue;
+      gdb::optional<int> length
+	(extlang->ops->print_insn (gdbarch, address, info));
+      if (length.has_value ())
+	return length;
+    }
+
+  return {};
+}
+
 /* Called via an observer before gdb prints its prompt.
    Iterate over the extension languages giving them a chance to
    change the prompt.  The first one to change the prompt wins,

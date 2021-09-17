@@ -319,4 +319,21 @@ extern void get_matching_xmethod_workers
 extern gdb::optional<std::string> ext_lang_colorize
   (const std::string &filename, const std::string &contents);
 
+/* Try to disassemble a single instruction.  ADDRESS is the address that
+   the instructions apparent address, though bytes for the instruction
+   should be read by calling INFO->read_memory_func as we might be
+   disassembling out of a buffer.  GDBARCH is the architecture in which we
+   are performing the disassembly.
+
+   The disassembled instruction should be printed by calling
+   INFO->fprintf_func, and the length (in octets) of the disassembled
+   instruction should be returned.
+
+   If no instruction could be disassembled then an empty value is returned
+   and GDB will call gdbarch_print_insn to perform the disassembly
+   itself.  */
+
+extern gdb::optional<int> ext_lang_print_insn
+  (struct gdbarch *gdbarch, CORE_ADDR address, struct disassemble_info *info);
+
 #endif /* EXTENSION_H */
