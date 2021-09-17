@@ -572,6 +572,8 @@ int gdbpy_initialize_connection ()
 int gdbpy_initialize_micommands (void)
   CPYCHECKER_NEGATIVE_RESULT_SETS_EXCEPTION;
 void gdbpy_finalize_micommands ();
+int gdbpy_initialize_disasm ()
+  CPYCHECKER_NEGATIVE_RESULT_SETS_EXCEPTION;
 
 /* A wrapper for PyErr_Fetch that handles reference counting for the
    caller.  */
@@ -617,6 +619,13 @@ public:
   bool type_matches (PyObject *type) const
   {
     return PyErr_GivenExceptionMatches (m_error_type.get (), type);
+  }
+
+  /* Return a new reference to the exception value object.  */
+
+  gdbpy_ref<> value ()
+  {
+    return m_error_value;
   }
 
 private:
@@ -850,5 +859,19 @@ extern bool gdbpy_is_architecture (PyObject *obj);
 /* Return true if OBJ is a gdb.Progspace object, otherwise, return false.  */
 
 extern bool gdbpy_is_progspace (PyObject *obj);
+
+/* Implement the 'print_insn' hook for Python.  Disassemble an instruction
+   whose address is ADDRESS for architecture GDBARCH.  The bytes of the
+   instruction should be read with INFO->read_memory_func as the
+   instruction being disassembled might actually be in a buffer.
+
+   Used INFO->fprintf_func to print the results of the disassembly, and
+   return the length of the instruction in octets.
+
+   If no instruction can be disassembled then return an empty value.  */
+
+extern gdb::optional<int> gdbpy_print_insn (struct gdbarch *gdbarch,
+					    CORE_ADDR address,
+					    disassemble_info *info);
 
 #endif /* PYTHON_PYTHON_INTERNAL_H */
