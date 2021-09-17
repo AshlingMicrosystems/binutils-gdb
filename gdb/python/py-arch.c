@@ -72,6 +72,15 @@ arch_object_to_gdbarch (PyObject *obj)
   return py_arch->gdbarch;
 }
 
+/* See python-internal.h.  */
+
+bool
+gdbpy_is_arch_object (PyObject *obj)
+{
+  gdb_assert (obj != nullptr);
+  return PyObject_TypeCheck (obj, &arch_object_type);
+}
+
 /* Returns the Python architecture object corresponding to GDBARCH.
    Returns a new reference to the arch_object associated as data with
    GDBARCH.  */

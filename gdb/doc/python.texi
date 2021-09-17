@@ -221,6 +221,7 @@ optional arguments while skipping others.  Example:
 * Architectures In Python::     Python representation of architectures.
 * Registers In Python::         Python representation of registers.
 * TUI Windows In Python::       Implementing new TUI windows.
+* Disassembly In Python::       Instruction Disassembly In Python
 @end menu
 
 @node Basic Python
@@ -543,6 +544,7 @@ such as those used by readline for command input, and annotation
 related prompts are prohibited from being changed.
 @end defun
 
+@anchor{gdb_architecture_names}
 @defun gdb.architecture_names ()
 Return a list containing all of the architecture names that the
 current build of @value{GDBN} supports.  Each architecture name is a
@@ -3122,6 +3124,7 @@ single address space, so this may not match the architecture of a
 particular frame (@pxref{Frames In Python}).
 @end defun
 
+@anchor{gdbpy_inferior_read_memory}
 @findex Inferior.read_memory
 @defun Inferior.read_memory (address, length)
 Read @var{length} addressable memory units from the inferior, starting at
@@ -6047,6 +6050,255 @@ the mouse coordinates inside the window (0-based), and @var{button}
 specifies which mouse button was used, whose values can be 1 (left),
 2 (middle), or 3 (right).
 @end defun
+
+@node Disassembly In Python
+@cindex Python Instruction Disassembly
+@subsubsection Instruction Disassembly In Python
+
+@value{GDBN}'s builtin disassembler can be extended, or even replaced,
+using the Python API.  The disassembler related features are contained
+within the @code{gdb.disassembler} module:
+
+@deftp {class} DisassembleInfo
+Disassembly is driven by instances of this class.  Each time
+@value{GDBN} needs to disassemble an instruction, an instance of this
+class is created and passed to a registered disassembler.  The
+disassembler is then responsible for disassembling an instruction and
+storing the result within the instance of this class.  The following
+attributes and methods are available:
+
+@defivar DisassembleInfo address
+An integer containing the address at which @value{GDBN} wishes to
+disassemble a single instruction.
+@end defivar
+
+@defivar DisassembleInfo string
+A string that is the result of the disassembly.  If no result has yet
+been set then this field contains @code{None}.
+@end defivar
+
+@defivar DisassembleInfo length
+An integer that is the length of the disassembled instruction in
+bytes, or @code{None} if no result has yet been set for this
+instruction.
+
+When a result has been set then the length will always be a non-zero
+positive integer.
+@end defivar
+
+@defivar DisassembleInfo architecture
+The @code{gdb.Architecture} (@pxref{Architectures In Python}) for
+which @value{GDBN} is currently disassembling.
+@end defivar
+
+@defivar DisassembleInfo can_emit_style_escapes
+This is @code{True} if the output stream that the disassembler is
+currently printing too can support escape sequences use for colors,
+otherwise this attribute is @code{False}.
+@end defivar
+
+@defmethod DisassembleInfo read_memory (length, offset)
+This method allows the disassembler to read the bytes of the
+instruction to be disassembled.  The method reads @var{length} bytes,
+starting at @var{offset} from @code{DisassembleInfo.address}.
+
+It is important that the disassembler read the instruction bytes using
+this method, rather than reading inferior memory directly, as in some
+cases @value{GDBN} disassembles from an internal buffer rather than
+directly from inferior memory.
+
+Returns a buffer object, which behaves much like an array or a string,
+just as @code{Inferior.read_memory} does
+(@pxref{gdbpy_inferior_read_memory,,Inferior.read_memory}).
+@end defmethod
+
+@defmethod DisassembleInfo set_result (length, string)
+This method is used to set the result after an instruction has
+successfully been disassembled.  The @var{length} is the length in
+bytes of the instruction, and @var{string} is the text that should be
+displayed for the disassembled output.
+
+The @var{length} must be greater than zero, and @var{string} must be a
+non-empty string.
+
+It is valid to call this method multiple times during the disassembly
+of a single instruction, each call replaces the previous result.  In
+this way it is possible to extend the output of a previous
+disassembler.
+
+If @code{DisassembleInfo.memory_error} has previously been called,
+then calling @code{DisassembleInfo.set_result} clears the memory error
+from this @code{DisassembleInfo}.
+@end defmethod
+
+@defmethod DisassembleInfo memory_error (offset)
+This method marks the @code{DisassembleInfo} as having experienced a
+@code{gdb.MemoryError} when trying to access memory of @var{offset}
+bytes from @code{DisassembleInfo.address}.
+
+It is valid to call @code{DisassembleInfo.memory_error} multiple times
+for a single instruction disassembly, but only the first memory error
+is recorded.
+
+If @code{DisassembleInfo.set_result} has already been called, then any
+result is discarded when @code{DisassembleInfo.memory_error} is
+called.
+@end defmethod
+@end deftp
+
+@deftp {class} Disassembler
+This is a base class from which all user implemented disassemblers
+must inherit.
+
+@defmethod Disassembler __init__ (name)
+The constructor takes @var{name}, a string, which should be a short
+name for this disassembler.  Currently, this name is only used in some
+debug output.
+@end defmethod
+
+@defmethod Disassembler __call__ (info)
+The @code{__call__} method must be overridden by sub-classes to
+perform disassembly.  Calling @code{__call__} on this base class will
+raise a @code{NotImplementedError} exception.
+
+The @var{info} argument is an instance of @code{DisassembleInfo}, and
+describes the instruction that @value{GDBN} wants disassembling.
+
+This function must return @code{None}.  If this function raises a
+@code{gdb.MemoryError} exception then @value{GDBN} will ignore the
+exception and fallback to using its builtin disassembler.  Raising any
+other exception is an error.
+@end defmethod
+@end deftp
+
+@defun register_disassembler (disassembler, architecture)
+The @var{disassembler} must be a sub-class of @code{Disassembler}.
+
+The optional @var{architecture} is either a string, or the value
+@code{None}.  If it is a string, then it should be the name of an
+architecture known to @value{GDBN}, as returned either from
+@code{gdb.Architecture.name()}
+(@pxref{gdbpy_architecture_name,,gdb.Architecture.name}), or from
+@code{gdb.architecture_names()}
+(@pxref{gdb_architecture_names,,gdb.architecture_names}).
+
+The @var{disassembler} will be installed for the architecture named by
+@var{architecture}, or if @var{architecture} is @code{None}, then
+@var{disassembler} will be installed as a global disassembler for use
+by all architectures.
+
+@value{GDBN} only records a single disassembler for each architecture,
+and a single global disassembler.  Calling
+@code{register_disassembler} for an architecture, or for the global
+disassembler, will replace any existing disassembler registered for
+that @var{architecture} value.  The previous disassembler is returned.
+
+When @value{GDBN} is looking for a disassembler to use, @value{GDBN}
+first looks for an architecture specific disassembler.  If none has
+been registered then @value{GDBN} looks for a global disassembler (one
+registered with @var{architecture} set to @code{None}).  Only one
+disassembler is called to perform disassembly, so, if there is both an
+architecture specific disassembler, and a global disassembler
+registered, it is the architecture specific disassembler that will be
+used.
+
+@value{GDBN} tracks the architecture specific, and global
+disassemblers separately, so it doesn't matter in which order
+disassemblers are created or registed, an architecture specific
+disassembler, if present, will always be used before a global
+disassembler.
+@end defun
+
+@defun format_address (architecture, address)
+Returns @var{address} formatted as a string, in a style suitable for
+including in the disassembly output of an instruction, for example a
+formatted address might look like:
+
+@smallexample
+0x00001042 <symbol+16>
+@end smallexample
+
+@var{architecture} is a @code{gdb.Architecture} (@pxref{Architectures
+In Python}), which is required to format the addresses correctly.
+This can be obtained from @code{DisassembleInfo.architecture}.
+@end defun
+
+@defun syntax_highlight (info)
+This function can be used to apply syntax highlighting to the result
+already held within @var{info}, a @code{DisassembleInfo}.
+
+After calling this function the result in @var{info} @emph{might} have
+been updated to include syntax highlighting escape sequences.  If
+syntax highlighting is disabled in @value{GDBN}, or the output stream
+doesn't support syntax highlighting, then this function will leave
+@var{info} unchanged.
+
+If @var{info} doesn't have a result set when this function is called
+then @var{info} will not be modified.
+
+This function returns @code{None}.
+@end defun
+
+@defun builtin_disassemble (info, memory_source)
+This function calls back into @value{GDBN}'s builtin disassembler to
+disassemble the instruction identified by @var{info}, an instance of
+@code{DisassembleInfo}.
+
+After calling this function, if the instruction disassembled
+successfully, then @var{info} will have been updated as though
+@code{Disassemble.set_result} had been called.  The results of the
+builtin disassembler can be examined by reading
+@code{DisassembleInfo.length} and @code{DisassembleInfo.string}.
+
+If the builtin disassembler fails then this function will raise a
+@code{gdb.MemoryError} exception.
+
+The optional @var{memory_source} argument has the default value of
+@code{None}, in which case, the builtin disassembler will read the
+instruction from memory in the normal way.
+
+If @var{memory_source} is not @code{None}, then it should be an
+instance of a class that implements the following method:
+
+@defmethod memory_source read_memory (length, offset)
+This method will be called by the builtin disassembler to fetch bytes
+of the instruction being disassembled.  @var{length} is the number of
+bytes to fetch, and @var{offset} is the offset from the address of the
+instruction being disassembled, this address is obtained from
+@code{DisassembleInfo.address}.
+
+This function should return a Python object that supports the buffer
+protocol, i.e. a string, an array, or the object returned from
+@code{DisassembleInfo.read_memory}.
+
+The length of the returned buffer @emph{must} be @var{length}
+otherwise a @code{ValueError} exception will be raised.
+
+Alternatively, this function can raise a @code{gdb.MemoryError}
+exception to indicate that the read failed, raising any other
+exception type is an error.
+@end defmethod
+@end defun
+
+Here is an example that registers a global disassembler.  The new
+disassembler invokes the builtin disassembler, and then adds a
+comment, @code{## Comment}, to each line of disassembly output, before
+finally applying syntax highlighting to the result:
+
+@smallexample
+class ExampleDisassembler(gdb.disassembler.Disassembler):
+    def __init__(self):
+        super(ExampleDisassembler, self).__init__("ExampleDisassembler")
+
+    def __call__(self, info):
+        gdb.disassembler.builtin_disassemble(info)
+        if info.string is not None:
+            tmp = info.string + "\t## Comment"
+            info.set_result(info.length, tmp)
+            gdb.disassembler.syntax_highlight(info)
+
+gdb.disassembler.register_disassembler(ExampleDisassembler())
+@end smallexample
 
 @node Python Auto-loading
 @subsection Python Auto-loading

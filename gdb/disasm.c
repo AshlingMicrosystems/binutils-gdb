@@ -752,12 +752,13 @@ get_all_disassembler_options (struct gdbarch *gdbarch)
 
 gdb_disassembler::gdb_disassembler (struct gdbarch *gdbarch,
 				    struct ui_file *file,
-				    di_read_memory_ftype read_memory_func)
+				    di_read_memory_ftype read_memory_func,
+				    di_memory_error_ftype memory_error_func)
   : m_gdbarch (gdbarch)
 {
   init_disassemble_info (&m_di, file, dis_asm_fprintf);
   m_di.flavour = bfd_target_unknown_flavour;
-  m_di.memory_error_func = dis_asm_memory_error;
+  m_di.memory_error_func = memory_error_func;
   m_di.print_address_func = dis_asm_print_address;
   /* NOTE: cagney/2003-04-28: The original code, from the old Insight
      disassembler had a local optimization here.  By default it would
