@@ -191,6 +191,526 @@ is equivalent to 'remote:insn.xml'."""
 
 custom_instruction_path = RISCVDisassemblerFilename()
 
+
+class Insn:
+    def __init__(self, elem):
+        self.opcode = int(elem.attrib['opcode'],16)
+        self.str = elem.attrib['str']
+        self.type = elem.attrib['type']
+        self.funct3 = None
+        self.funct4 = None
+        self.funct7 = None
+        self._x_reg_names = ["zero", "ra", "sp", "gp", "tp", "t0",
+                             "t1", "t2", "fp", "s1", "a0", "a1",
+                             "a2", "a3", "a4", "a5", "a6", "a7",
+                             "s2", "s3", "s4", "s5", "s6", "s7",
+                             "s8", "s9", "s10", "s11", "t3", "t4",
+                             "t5", "t6"]
+        self._cx_reg_names = ["fp", "s1", "a0", "a1", "a2", "a3",
+                              "a4", "a5"]
+
+    def gen_opfunc3funct7_instr(self):
+        opcode = self.opcode
+        funct3 = self.funct3 << 12
+        funct7 = self.funct7 << 25
+        insn = opcode + funct3 + funct7
+        return insn
+
+    def gen_opfunc3_instr(self):
+        opcode = self.opcode
+        funct3 = self.funct3 << 12
+        insn = opcode + funct3
+        return insn
+
+    def gen_op_instr(self):
+        insn = self.opcode
+        return insn
+
+    def gen_c_opfunc4_instr(self):
+        opcode = self.opcode
+        funct4 = self.funct4 << 12
+        insn = opcode + funct4
+        return insn
+
+    def gen_c_opfunc3_instr(self):
+        opcode = self.opcode
+        funct4 = self.funct3 << 13
+        insn = opcode + funct4
+        return insn
+
+    def gen_c_op_instr(self):
+        insn = self.opcode
+        return insn
+
+    def gen_opfunc3funct7_mask(self):
+        opcode = 0b1111111
+        funct3 = 0b111 << 12
+        funct7 = 0b1111111 << 25
+        insn = opcode + funct3 + funct7
+        return insn
+
+    def gen_opfunc3_mask(self):
+        opcode = 0b1111111
+        funct3 = 0b111 << 12
+        insn = opcode + funct3
+        return insn
+
+    def gen_op_mask(self):
+        opcode = 0b1111111
+        insn = opcode
+        return insn
+
+    def gen_c_opfunc4_mask(self):
+        opcode = 0b11
+        funct4 = 0b1111 << 12
+        insn = opcode + funct4
+        return insn
+
+    def gen_c_opfunc3_mask(self):
+        opcode = 0b11
+        funct3 = 0b111 << 13
+        insn = opcode + funct3
+        return insn
+
+    def gen_c_op_mask(self):
+        insn = 0b11
+        return insn
+
+class Unknown_Insn(Insn):
+    def __init__(self, len):
+        super()
+        self.len = len
+        self.type = 'unknown'
+
+    def gen_instr_assembly(self, byte_stream):
+        return hex(byte_stream)
+
+
+class R_Insn(Insn):
+    def __init__(self, elem):
+        super().__init__(elem)
+        self.funct3 = int(elem.attrib['funct3'],16)
+        self.funct7 = int(elem.attrib['funct7'],16)
+        self.insn = self.gen_insn()
+        self.mask = self.gen_insn_mask()
+        self.len = 4
+
+    def gen_insn(self):
+        return self.gen_opfunc3funct7_instr()
+
+    def gen_insn_mask(self):
+        return self.gen_opfunc3funct7_mask()
+
+    def gen_instr_assembly(self, byte_stream):
+        raw_bytes = format(byte_stream, '032b')[::-1]
+        insn = self.str
+        opcode = hex(int(raw_bytes[6::-1], 2))
+        rd = int(raw_bytes[11:6:-1], 2)
+        funct3 = hex(int(raw_bytes[14:11:-1], 2))
+        rs1 = int(raw_bytes[19:14:-1], 2)       
+        rs2 = int(raw_bytes[24:19:-1], 2)
+        funct7 = hex(int(raw_bytes[:24:-1], 2))
+        insn = insn.replace ('$opcode', opcode)
+        insn = insn.replace ('$rd', self._x_reg_names[rd])
+        insn = insn.replace ('$funct3', funct3)
+        insn = insn.replace ('$rs1', self._x_reg_names[rs1])
+        insn = insn.replace ('$rs2', self._x_reg_names[rs2])
+        insn = insn.replace ('$funct7', funct7)
+        return insn
+
+class I_Insn(Insn):
+    def __init__(self, elem):
+        super().__init__(elem)
+        self.funct3 = int(elem.attrib['funct3'],16)
+        self.insn = self.gen_insn()
+        self.mask = self.gen_insn_mask()
+        self.len = 4
+
+    def gen_insn(self):
+        return self.gen_opfunc3_instr()
+
+    def gen_insn_mask(self):
+        return self.gen_opfunc3_mask()
+
+    def gen_instr_assembly(self, byte_stream):
+        raw_bytes = format(byte_stream, '032b')[::-1]
+        insn = self.str
+        opcode = hex(int(raw_bytes[6::-1], 2))
+        rd = int(raw_bytes[11:6:-1], 2)
+        funct3 = hex(int(raw_bytes[14:11:-1], 2))
+        rs1 = int(raw_bytes[19:14:-1], 2)       
+        imm = int(raw_bytes[:19:-1], 2)
+        insn = insn.replace ('$opcode', opcode)
+        insn = insn.replace ('$funct3', funct3)
+        insn = insn.replace ('$rd', self._x_reg_names[rd])
+        insn = insn.replace ('$rs1', self._x_reg_names[rs1])
+        insn = insn.replace ('$imm', f'{(imm&0b011111111111)-(imm&0b100000000000)}')
+        insn = insn.replace ('$uimm', f'{imm}')
+        return insn
+
+class S_Insn(Insn):
+    def __init__(self, elem):
+        super().__init__(elem)
+        self.funct3 = int(elem.attrib['funct3'],16)
+        self.insn = self.gen_insn()
+        self.mask = self.gen_insn_mask()
+        self.len = 4
+
+    def gen_insn(self):
+        return self.gen_opfunc3_instr()
+
+    def gen_insn_mask(self):
+        return self.gen_opfunc3_mask()
+
+    def gen_instr_assembly(self, byte_stream):
+        raw_bytes = format(byte_stream, '032b')[::-1]
+        insn = self.str
+        opcode = hex(int(raw_bytes[6::-1], 2))
+        funct3 = hex(int(raw_bytes[14:11:-1], 2))
+        rs1 = int(raw_bytes[19:14:-1], 2)       
+        rs2 = int(raw_bytes[24:19:-1], 2)
+        imm = (int(raw_bytes[11:6:-1], 2)) \
+            + (int(raw_bytes[:24:-1], 2) << 5)
+        insn = insn.replace ('$opcode', opcode)
+        insn = insn.replace ('$funct3', funct3)
+        insn = insn.replace ('$rs1', self._x_reg_names[rs1])
+        insn = insn.replace ('$rs2', self._x_reg_names[rs2])
+        insn = insn.replace ('$imm', f'{(imm&0b011111111111)-(imm&0b100000000000)}')
+        insn = insn.replace ('$uimm', f'{imm}')
+        return insn
+
+class B_Insn(Insn):
+    def __init__(self, elem):
+        super().__init__(elem)
+        self.funct3 = int(elem.attrib['funct3'],16)
+        self.insn = self.gen_insn()
+        self.mask = self.gen_insn_mask()
+        self.len = 4
+
+    def gen_insn(self):
+        return self.gen_opfunc3_instr()
+
+    def gen_insn_mask(self):
+        return self.gen_opfunc3_mask()
+
+    def gen_instr_assembly(self, byte_stream):
+        raw_bytes = format(byte_stream, '032b')[::-1]
+        insn = self.str
+        opcode = hex(int(raw_bytes[6::-1], 2))
+        funct3 = hex(int(raw_bytes[14:11:-1], 2))
+        rs1 = int(raw_bytes[19:14:-1], 2)       
+        rs2 = int(raw_bytes[24:19:-1], 2)
+        imm = (int(raw_bytes[11:7:-1], 2) << 1) \
+            + (int(raw_bytes[30:24:-1], 2) << 5) \
+            + (int(raw_bytes[7], 2) << 11) \
+            + (int(raw_bytes[31], 2) << 12)
+        insn = insn.replace ('$opcode', opcode)
+        insn = insn.replace ('$funct3', funct3)
+        insn = insn.replace ('$rs1', self._x_reg_names[rs1])
+        insn = insn.replace ('$rs2', self._x_reg_names[rs2])
+        insn = insn.replace ('$imm', f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
+        insn = insn.replace ('$uimm', f'{imm}')
+        return insn
+
+class U_Insn(Insn):
+    def __init__(self, elem):
+        super().__init__(elem)
+        self.insn = self.gen_insn()
+        self.mask = self.gen_insn_mask()
+        self.len = 4
+
+    def gen_insn(self):
+        return self.gen_op_instr()
+
+    def gen_insn_mask(self):
+        return self.gen_op_mask()
+
+    def gen_instr_assembly(self, byte_stream):
+        raw_bytes = format(byte_stream, '032b')[::-1]
+        insn = self.str
+        opcode = hex(int(raw_bytes[6::-1], 2))
+        rd = int(raw_bytes[11:6:-1], 2)       
+        imm = (int(raw_bytes[:11:-1], 2))
+        insn = insn.replace ('$opcode', opcode)
+        insn = insn.replace ('$rd', self._x_reg_names[rd])
+        insn = insn.replace ('$imm', f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
+        insn = insn.replace ('$uimm', f'{imm}')
+        return insn
+
+class J_Insn(Insn):
+    def __init__(self, elem):
+        super().__init__(elem)
+        self.opcode = int(elem.attrib['opcode'],16)
+        self.str = elem.attrib['str']
+        self.type = elem.attrib['type']
+        self.insn = self.gen_insn()
+        self.mask = self.gen_insn_mask()
+        self.len = 4
+
+    def gen_insn(self):
+        return self.gen_op_instr()
+
+    def gen_insn_mask(self):
+        return self.gen_op_mask()
+
+    def gen_instr_assembly(self, byte_stream):
+        raw_bytes = format(byte_stream, '032b')[::-1]
+        insn = self.str
+        opcode = hex(int(raw_bytes[6::-1], 2))
+        rd = int(raw_bytes[11:6:-1], 2)       
+        imm = (int(raw_bytes[19:11:-1], 2) << 12) \
+            + (int(raw_bytes[20], 2) << 11) \
+            + (int(raw_bytes[30:20:-1], 2) << 1) \
+            + (int(raw_bytes[31], 2) << 20) 
+        insn = insn.replace ('$opcode', opcode)
+        insn = insn.replace ('$rd', self._x_reg_names[rd])
+        insn = insn.replace ('$imm', f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
+        insn = insn.replace ('$uimm', f'{imm}')
+        return insn
+
+
+class CR_Insn(Insn):
+    def __init__(self, elem):
+        super().__init__(elem)
+        self.funct4 = int(elem.attrib['funct4'],16)
+        self.insn = self.gen_insn()
+        self.mask = self.gen_insn_mask()
+        self.len = 2
+
+    def gen_insn(self):
+        return self.gen_c_opfunc4_instr()
+
+    def gen_insn_mask(self):
+        return self.gen_c_opfunc4_mask()
+
+    def gen_instr_assembly(self, byte_stream):
+        raw_bytes = format(byte_stream, '016b')[::-1]
+        insn = self.str
+        opcode = hex(int(raw_bytes[1::-1], 2))
+        rs2 = int(raw_bytes[6:1:-1], 2)
+        rds1 = int(raw_bytes[11:6:-1], 2)       
+        funct4 = hex(int(raw_bytes[:11:-1], 2))
+        insn = insn.replace ('$opcode', opcode)
+        insn = insn.replace ('$rd', self._x_reg_names[rds1])
+        insn = insn.replace ('$rs1', self._x_reg_names[rds1])
+        insn = insn.replace ('$rs2', self._x_reg_names[rs2])
+        insn = insn.replace ('$funct4', funct4)
+        return insn
+
+class CI_Insn(Insn):
+    def __init__(self, elem):
+        super().__init__(elem)
+        self.funct3 = int(elem.attrib['funct3'],16)
+        self.insn = self.gen_insn()
+        self.mask = self.gen_insn_mask()
+        self.len = 2
+
+    def gen_insn(self):
+        return self.gen_c_opfunc3_instr()
+
+    def gen_insn_mask(self):
+        return self.gen_c_opfunc3_mask()
+
+    def gen_instr_assembly(self, byte_stream):
+        raw_bytes = format(byte_stream, '016b')[::-1]
+        insn = self.str
+        opcode = hex(int(raw_bytes[1::-1], 2))
+        rd = int(raw_bytes[11:6:-1], 2)       
+        imm = (int(raw_bytes[6:1:-1], 2)) \
+            + (int(raw_bytes[12], 2) << 5)
+        funct3 = hex(int(raw_bytes[:12:-1], 2))
+        insn = insn.replace ('$opcode', opcode)
+        insn = insn.replace ('$rd', self._x_reg_names[rd])
+        insn = insn.replace ('$rs1', self._x_reg_names[rd])
+        insn = insn.replace ('$imm', f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
+        insn = insn.replace ('$uimm', f'{imm}')
+        insn = insn.replace ('$funct3', funct3)
+        return insn
+
+class CSS_Insn(Insn):
+    def __init__(self, elem):
+        super().__init__(elem)
+        self.funct3 = int(elem.attrib['funct3'],16)
+        self.insn = self.gen_insn()
+        self.mask = self.gen_insn_mask()
+        self.len = 2
+
+    def gen_insn(self):
+        return self.gen_c_opfunc3_instr()
+
+    def gen_insn_mask(self):
+        return self.gen_c_opfunc3_mask()
+
+    def gen_instr_assembly(self, byte_stream):
+        raw_bytes = format(byte_stream, '016b')[::-1]
+        insn = self.str
+        opcode = hex(int(raw_bytes[1::-1], 2))
+        rd = int(raw_bytes[11:6:-1], 2)    
+        imm = (int(raw_bytes[12:8:-1], 2) << 2) \
+            + (int(raw_bytes[8:6:-1], 2) << 6)
+        funct3 = hex(int(raw_bytes[:12:-1], 2))
+        insn = insn.replace ('$opcode', opcode)
+        insn = insn.replace ('$rd', self._x_reg_names[rd])
+        insn = insn.replace ('$rs1', self._x_reg_names[rd])
+        insn = insn.replace ('$imm', f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
+        insn = insn.replace ('$uimm', f'{imm}')
+        insn = insn.replace ('$funct3', funct3)
+        return insn
+
+
+class CIW_Insn(Insn):
+    def __init__(self, elem):
+        super().__init__(elem)
+        self.funct3 = int(elem.attrib['funct3'],16)
+        self.insn = self.gen_insn()
+        self.mask = self.gen_insn_mask()
+        self.len = 2
+
+    def gen_insn(self):
+        return self.gen_c_opfunc3_instr()
+
+    def gen_insn_mask(self):
+        return self.gen_c_opfunc3_mask()
+
+    def gen_instr_assembly(self, byte_stream):
+        raw_bytes = format(byte_stream, '016b')[::-1]
+        insn = self.str
+        opcode = hex(int(raw_bytes[1::-1], 2))
+        rd = int(raw_bytes[4:1:-1], 2)       
+        imm = (int(raw_bytes[5], 2) << 3) \
+            + (int(raw_bytes[6], 2) << 2) \
+            + (int(raw_bytes[12:10:-1], 2) << 4) \
+            + (int(raw_bytes[10:6:-1], 2) << 6)
+        funct3 = hex(int(raw_bytes[:12:-1], 2))
+        insn = insn.replace ('$opcode', opcode)
+        insn = insn.replace ('$rd', self._cx_reg_names[rd])
+        insn = insn.replace ('$imm', f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
+        insn = insn.replace ('$uimm', f'{imm}')
+        insn = insn.replace ('$funct3', funct3)
+        return insn
+
+class CL_Insn(Insn):
+    def __init__(self, elem):
+        super().__init__(elem)
+        self.funct3 = int(elem.attrib['funct3'],16)
+        self.insn = self.gen_insn()
+        self.mask = self.gen_insn_mask()
+        self.len = 2
+
+    def gen_insn(self):
+        return self.gen_c_opfunc3_instr()
+
+    def gen_insn_mask(self):
+        return self.gen_c_opfunc3_mask()
+
+    def gen_instr_assembly(self, byte_stream):
+        raw_bytes = format(byte_stream, '016b')[::-1]
+        insn = self.str
+        opcode = hex(int(raw_bytes[1::-1], 2))
+        rd = int(raw_bytes[4:1:-1], 2)   
+        rs1 = int(raw_bytes[9:6:-1], 2)      
+        imm = (int(raw_bytes[5], 2) << 2) \
+            + (int(raw_bytes[6], 2) << 6) \
+            + (int(raw_bytes[12:10:-1], 2) << 3)
+        funct3 = hex(int(raw_bytes[:12:-1], 2))
+        insn = insn.replace ('$opcode', opcode)
+        insn = insn.replace ('$rd', self._cx_reg_names[rd])
+        insn = insn.replace ('$rs1', self._cx_reg_names[rs1])
+        insn = insn.replace ('$imm', f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
+        insn = insn.replace ('$uimm', f'{imm}')
+        insn = insn.replace ('$funct3', funct3)
+        return insn
+
+class CS_Insn(Insn):
+    def __init__(self, elem):
+        super().__init__(elem)
+        self.funct3 = int(elem.attrib['funct3'],16)
+        self.insn = self.gen_insn()
+        self.mask = self.gen_insn_mask()
+        self.len = 2
+
+    def gen_insn(self):
+        return self.gen_c_opfunc3_instr()
+
+    def gen_insn_mask(self):
+        return self.gen_c_opfunc3_mask()
+
+    def gen_instr_assembly(self, byte_stream):
+        raw_bytes = format(byte_stream, '016b')[::-1]
+        insn = self.str
+        opcode = hex(int(raw_bytes[1::-1], 2))
+        rd = int(raw_bytes[4:1:-1], 2)   
+        rs1 = int(raw_bytes[9:6:-1], 2)      
+        imm = (int(raw_bytes[5], 2) << 2) \
+            + (int(raw_bytes[6], 2) << 6) \
+            + (int(raw_bytes[12:10:-1], 2) << 3)
+        funct3 = hex(int(raw_bytes[:12:-1], 2))
+        insn = insn.replace ('$opcode', opcode)
+        insn = insn.replace ('$rd', self._cx_reg_names[rd])
+        insn = insn.replace ('$rs1', self._cx_reg_names[rs1])
+        insn = insn.replace ('$imm', f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
+        insn = insn.replace ('$uimm', f'{imm}')
+        insn = insn.replace ('$funct3', funct3)
+        return insn
+
+class CB_Insn(Insn):
+    def __init__(self, elem):
+        super().__init__(elem)
+        self.funct3 = int(elem.attrib['funct3'],16)
+        self.insn = self.gen_insn()
+        self.mask = self.gen_insn_mask()
+        self.len = 2
+
+    def gen_insn(self):
+        return self.gen_c_opfunc3_instr()
+
+    def gen_insn_mask(self):
+        return self.gen_c_opfunc3_mask()
+
+    def gen_instr_assembly(self, byte_stream):
+        raw_bytes = format(byte_stream, '016b')[::-1]
+        insn = self.str
+        opcode = hex(int(raw_bytes[1::-1], 2))  
+        rs1 = int(raw_bytes[9:6:-1], 2)      
+        imm = (int(raw_bytes[2], 2) << 5) \
+            + (int(raw_bytes[6:2:-1], 2) << 1) \
+            + (int(raw_bytes[12:9:-1], 2) << 6)
+        funct3 = hex(int(raw_bytes[:12:-1], 2))
+        insn = insn.replace ('$opcode', opcode)
+        insn = insn.replace ('$rs1', self._cx_reg_names[rs1])
+        insn = insn.replace ('$imm', f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
+        insn = insn.replace ('$uimm', f'{imm}')
+        insn = insn.replace ('$funct3', funct3)
+        return insn
+
+class CJ_Insn(Insn):
+    def __init__(self, elem):
+        super().__init__(elem)
+        self.funct3 = int(elem.attrib['funct3'],16)
+        self.insn = self.gen_insn()
+        self.mask = self.gen_insn_mask()
+        self.len = 2
+
+    def gen_insn(self):
+        return self.gen_c_opfunc3_instr()
+
+    def gen_insn_mask(self):
+        return self.gen_c_opfunc3_mask()
+
+    def gen_instr_assembly(self, byte_stream):
+        raw_bytes = format(byte_stream, '016b')[::-1]
+        insn = self.str
+        opcode = hex(int(raw_bytes[1::-1], 2))     
+        imm = (int(raw_bytes[2], 2) << 5) \
+            + (int(raw_bytes[6:2:-1], 2) << 1) \
+            + (int(raw_bytes[12:6:-1], 2) << 6)
+        funct3 = hex(int(raw_bytes[:12:-1], 2))
+        insn = insn.replace ('$opcode', opcode)
+        insn = insn.replace ('$imm', f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
+        insn = insn.replace ('$uimm', f'{imm}')
+        insn = insn.replace ('$funct3', funct3)
+        return insn
+
 #####################################################################
 ##
 ## The following is a temporary place holder while the real
@@ -203,91 +723,103 @@ custom_instruction_path = RISCVDisassemblerFilename()
 class CustomInstructionHandler:
     def __init__(self):
         self._root = custom_instruction_path.fetch_xml()
-        self._get_operands = {
-            "r": self._operands_for_type_r,
-            "ca": self._operands_for_type_ca,
+        self._insns = self.create_insns(self._root)
+
+    def gen_Unknown_Insn(self, len):
+        return Unknown_Insn(len)
+
+    def gen_R_insn(self, elem):
+        return R_Insn(elem)
+
+    def gen_I_insn(self, elem):
+        return I_Insn(elem)
+
+    def gen_S_insn(self, elem):
+        return S_Insn(elem)
+
+    def gen_B_insn(self, elem):
+        return B_Insn(elem)
+
+    def gen_U_insn(self, elem):
+        return U_Insn(elem)
+
+    def gen_J_insn(self, elem):
+        return J_Insn(elem)
+
+    def gen_CR_insn(self, elem):
+        return CR_Insn(elem)
+
+    def gen_CI_insn(self, elem):
+        return CI_Insn(elem)
+
+    def gen_CSS_insn(self, elem):
+        return CSS_Insn(elem)
+
+    def gen_CIW_insn(self, elem):
+        return CIW_Insn(elem)
+
+    def gen_CL_insn(self, elem):
+        return CL_Insn(elem)
+
+    def gen_CS_insn(self, elem):
+        return CS_Insn(elem)
+
+    def gen_CB_insn(self, elem):
+        return CB_Insn(elem)
+
+    def gen_CJ_insn(self, elem):
+        return CJ_Insn(elem)
+
+    def create_insns(self, root):
+        masks = []
+        gen_insn = {
+            "R" : self.gen_R_insn,
+            "I" : self.gen_I_insn,
+            "S" : self.gen_S_insn,
+            "B" : self.gen_B_insn,
+            "SB" : self.gen_B_insn,
+            "U" : self.gen_U_insn,
+            "J" : self.gen_J_insn,
+            "UJ" : self.gen_J_insn,
+            "CR" : self.gen_CR_insn,
+            "CI" : self.gen_CI_insn,
+            "CSS" : self.gen_CSS_insn,
+            "CIW" : self.gen_CIW_insn,
+            "CL" : self.gen_CL_insn,
+            "CS" : self.gen_CS_insn,
+            "CB" : self.gen_CB_insn,
+            "CJ" : self.gen_CJ_insn
         }
-        self._x_reg_names = [
-            "zero",
-            "ra",
-            "sp",
-            "gp",
-            "tp",
-            "t0",
-            "t1",
-            "t2",
-            "fp",
-            "s1",
-            "a0",
-            "a1",
-            "a2",
-            "a3",
-            "a4",
-            "a5",
-            "a6",
-            "a7",
-            "s2",
-            "s3",
-            "s4",
-            "s5",
-            "s6",
-            "s7",
-            "s8",
-            "s9",
-            "s10",
-            "s11",
-            "t3",
-            "t4",
-            "t5",
-            "t6",
-        ]
-        self._cx_reg_names = ["fp", "s1", "a0", "a1", "a2", "a3", "a4", "a5"]
+        insns = root.findall('instruction')
+        for elem in insns:
+            try:
+                insn = gen_insn[elem.attrib['type']](elem)        
+                masks.append(insn)
+            except(KeyError):
+                print("Unknown Instruction Type: " + elem.attrib['type'])
+        return masks
 
-    def _operands_for_type_r(self, insn):
-        rd = (insn >> 7) & 0x1F
-        rs1 = (insn >> 15) & 0x1F
-        rs2 = (insn >> 20) & 0x1F
-        return "%s,%s,%s" % (
-            self._x_reg_names[rd],
-            self._x_reg_names[rs1],
-            self._x_reg_names[rs2],
-        )
+    def compare_with_insns(self, byte, len):
+        # print("")
+        for insn in self._insns:
+            if(self.compare_with_insn(byte, insn, len)):
+                return insn
+        return None
 
-    def _operands_for_type_ca(self, insn):
-        rd_rs1 = (insn >> 7) & 0x7
-        rs2 = (insn >> 2) & 0x7
-        return "%s,%s,%s" % (
-            self._cx_reg_names[rd_rs1],
-            self._cx_reg_names[rd_rs1],
-            self._cx_reg_names[rs2],
-        )
+    def compare_with_insn(self, byte, insn, len):
+        if(len != insn.len):
+            return 0
+        # print(insn.type)
+        # print(format(insn.mask, '016b'))
+        # print(format(byte, '016b'))
+        # print(format(insn.insn, '016b'))
+        # print(format((byte & insn.mask), '016b'))
+        return (insn.insn == (byte & insn.mask))
 
-    def disassemble(self, insn, len, info):
-        if self._root is None:
-            return None
-
-        for child in self._root.findall("instruction"):
-            attrib = child.attrib
-            i_len = int(attrib.get("length"))
-            if i_len is None or i_len != len:
-                continue
-            i_mask = int(attrib.get("mask"), 16)
-            i_val = int(attrib.get("value"), 16)
-            if i_mask is None or i_val is None:
-                continue
-            if insn & i_mask != i_val:
-                continue
-            i_mnem = attrib.get("mnemonic")
-            if i_mnem is None:
-                continue
-            i_type = attrib.get("type")
-            if i_type is None:
-                continue
-            operands = self._get_operands[i_type](insn)
-            if operands is None:
-                continue
-            str = i_mnem + "\t" + operands
-            return str
+    def disassemble(self,insn, len, info):
+        insn_type = self.compare_with_insns(insn, len)
+        if(insn_type is not None):
+            return insn_type.gen_instr_assembly(insn)
         return None
 
 
