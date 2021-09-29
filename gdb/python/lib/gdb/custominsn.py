@@ -4,46 +4,47 @@ from gdb.disassembler import Disassembler
 import xml.etree.ElementTree as ElementTree
 from os.path import expanduser
 
-## This is an example script for the Buffalo custom instruction
-## disassembler, it has a very simplistic disassembler core which is
-## really only geared toward disassembling two instructions:
-##
-## asm (".insn r 0x0b, 0x0, 0x0, x3, x4, x5" ::: "memory");
-## asm (".insn ca 0x1, 0x27, 0x2, x8, x9" ::: "memory");
-##
-## Here are two XML files that can be used with this script and the
-## above instructions:
-##
-## <instructions>
-##   <instruction length="4" type="r" mask="0xfe00707f" value="0x0000000b" mnemonic="blah"/>
-##   <instruction length="2" type="ca" mask="0xfc63" value="0x9c41" mnemonic="c.blah"/>
-## </instructions>
-##
-## Here's a second XML file:
-##
-## <instructions>
-##   <instruction length="4" type="r" mask="0xfe00707f" value="0x0000000b" mnemonic="woof"/>
-##   <instruction length="2" type="ca" mask="0xfc63" value="0x9c41" mnemonic="c.woof"/>
-## </instructions>
-##
-## This script supports fetching the XML file from the remote target.
-## This is done using the packet:
-##
-## qXfer:features:read:annex:start,length
-##
-## Which is the same packet as is used for reading the target XML
-## description.  The only difference will be in the name of the annex
-## which is passed.
-##
-## The default remote annex is 'insn.xml', but it can be changed using:
-##
-## set custom-instruction-filename remote:ANNEX
+# This is an example script for the Buffalo custom instruction
+# disassembler, it has a very simplistic disassembler core which is
+# really only geared toward disassembling two instructions:
+#
+# asm (".insn r 0x0b, 0x0, 0x0, x3, x4, x5" ::: "memory");
+# asm (".insn ca 0x1, 0x27, 0x2, x8, x9" ::: "memory");
+#
+# Here are two XML files that can be used with this script and the
+# above instructions:
+#
+# <instructions>
+#   <instruction length="4" type="r" mask="0xfe00707f" value="0x0000000b" mnemonic="blah"/>
+#   <instruction length="2" type="ca" mask="0xfc63" value="0x9c41" mnemonic="c.blah"/>
+# </instructions>
+#
+# Here's a second XML file:
+#
+# <instructions>
+#   <instruction length="4" type="r" mask="0xfe00707f" value="0x0000000b" mnemonic="woof"/>
+#   <instruction length="2" type="ca" mask="0xfc63" value="0x9c41" mnemonic="c.woof"/>
+# </instructions>
+#
+# This script supports fetching the XML file from the remote target.
+# This is done using the packet:
+#
+# qXfer:features:read:annex:start,length
+#
+# Which is the same packet as is used for reading the target XML
+# description.  The only difference will be in the name of the annex
+# which is passed.
+#
+# The default remote annex is 'insn.xml', but it can be changed using:
+#
+# set custom-instruction-filename remote:ANNEX
 
-#####################################################################
-##
-## Create a parameter that can be used to enable or disable the custom
-## disassembler functionality.
-##
+####################################################################
+#
+# Create a parameter that can be used to enable or disable the custom
+# disassembler functionality.
+#
+
 
 
 class RISCVDisassemblerEnabled(gdb.Parameter):
@@ -56,12 +57,10 @@ instructions using the standard builtin behaviour."""
 
     def __init__(self):
         """Constructor."""
-        self.set_doc = (
-            "Set whether the disassembler should perform custom instruction display."
-        )
-        self.show_doc = (
-            "Show whether the disassembler should perform custom instruction display."
-        )
+        self.set_doc = "Set whether the disassembler should perform custom \
+            instruction display."
+        self.show_doc = "Show whether the disassembler should perform custom \
+            instruction display."
 
         parent = super(RISCVDisassemblerEnabled, self)
         parent.__init__(
@@ -87,15 +86,16 @@ instructions using the standard builtin behaviour."""
 
 custom_instruction_display_p = RISCVDisassemblerEnabled()
 
-#####################################################################
-##
-## Create a parameter that points at the filename for the XML file
-## that describes the custom instruction.
-##
-## The value of this parameter can be either a path on the local
-## system, or the name of a file on the remote target with a 'remote:'
-## prefix.
-##
+####################################################################
+#
+# Create a parameter that points at the filename for the XML file
+# that describes the custom instruction.
+#
+# The value of this parameter can be either a path on the local
+# system, or the name of a file on the remote target with a 'remote:'
+# prefix.
+#
+
 
 
 class RISCVDisassemblerFilename(gdb.Parameter):
@@ -117,8 +117,10 @@ is equivalent to 'remote:insn.xml'."""
 
     def __init__(self):
         """Constructor."""
-        self.set_doc = "Set the path to the XML file containing the custom instruction descriptions."
-        self.show_doc = "Show the path to the XML file containing the custom instruction descriptions."
+        self.set_doc = "Set the path to the XML file containing the custom \
+            instruction descriptions."
+        self.show_doc = "Show the path to the XML file containing the custom \
+            instruction descriptions."
 
         parent = super(RISCVDisassemblerFilename, self)
         parent.__init__(
@@ -137,9 +139,8 @@ is equivalent to 'remote:insn.xml'."""
         riscv_disassembler.discard_cached_disassembler()
         if self.value == "remote:":
             self.value = "remote:insn.xml"
-            return (
-                'custom-instruction-path set to default remote path "%s".' % self.value
-            )
+            return "custom-instruction-path set to default remote path \
+                \"%s\"." % self.value
         return ""
 
     def fetch_xml(self):
@@ -189,108 +190,132 @@ is equivalent to 'remote:insn.xml'."""
         return tree.getroot()
 
 
-custom_instruction_path = RISCVDisassemblerFilename()
-
-
 class Insn:
+    """This is the base instruction class from which all specific instructions
+    inherit. Takes an XML instruction, and takes out the opcode, instruction
+    string and type.
+
+    Provides methods for initialising all valid instruction masks and
+    instruction specific identifiers. """
     def __init__(self, elem):
-        self.opcode = int(elem.attrib['opcode'],16)
-        self.str = elem.attrib['str']
+        self.opcode = int(elem.attrib['opcode'], 16)
+        self.format_string = elem.attrib['str']
         self.type = elem.attrib['type']
         self.funct3 = None
         self.funct4 = None
         self.funct7 = None
+        # mapping of integer indexes to registers
         self._x_reg_names = ["zero", "ra", "sp", "gp", "tp", "t0",
                              "t1", "t2", "fp", "s1", "a0", "a1",
                              "a2", "a3", "a4", "a5", "a6", "a7",
                              "s2", "s3", "s4", "s5", "s6", "s7",
                              "s8", "s9", "s10", "s11", "t3", "t4",
                              "t5", "t6"]
+        # mapping of integer indexes to compressed registers
         self._cx_reg_names = ["fp", "s1", "a0", "a1", "a2", "a3",
                               "a4", "a5"]
 
     def gen_opfunc3funct7_instr(self):
+        """Instruction specific identifier, func3 and funct7 specified.
+        Currently only used by R-type instructions"""
         opcode = self.opcode
         funct3 = self.funct3 << 12
         funct7 = self.funct7 << 25
-        insn = opcode + funct3 + funct7
+        insn = opcode | funct3 | funct7
         return insn
 
     def gen_opfunc3_instr(self):
+        """Instruction specific identifier, func3 specified.
+        Currently used by I, S, and B -type instructions"""
         opcode = self.opcode
         funct3 = self.funct3 << 12
-        insn = opcode + funct3
+        insn = opcode | funct3
         return insn
 
     def gen_op_instr(self):
+        """Instruction specific identifier, fuction code unspecified.
+        Currently used by U and J -type instructions"""
         insn = self.opcode
         return insn
 
     def gen_c_opfunc4_instr(self):
+        """Compressed instruction specific identifier, func4 specified.
+        Currently used by CR-type instructions only"""
         opcode = self.opcode
         funct4 = self.funct4 << 12
-        insn = opcode + funct4
+        insn = opcode | funct4
         return insn
 
     def gen_c_opfunc3_instr(self):
+        """Compressed instruction specific identifier, func3 specified.
+        Currently used by CI, CSS, CIW, CL, CS, Cb, CJ -type instructions"""
         opcode = self.opcode
         funct4 = self.funct3 << 13
-        insn = opcode + funct4
+        insn = opcode | funct4
         return insn
 
     def gen_c_op_instr(self):
+        """Compressed instruction specific identifier, fuction code unspecified.
+        Currently unused"""
         insn = self.opcode
         return insn
 
     def gen_opfunc3funct7_mask(self):
+        """Instruction mask, func3 and funct7 specified.
+        Currently only used by R-type instructions"""
         opcode = 0b1111111
         funct3 = 0b111 << 12
         funct7 = 0b1111111 << 25
-        insn = opcode + funct3 + funct7
+        insn = opcode | funct3 | funct7
         return insn
 
     def gen_opfunc3_mask(self):
+        """Instruction mask, func3 specified.
+        Currently used by I, S, and B -type instructions"""
         opcode = 0b1111111
         funct3 = 0b111 << 12
-        insn = opcode + funct3
+        insn = opcode | funct3
         return insn
 
     def gen_op_mask(self):
+        """Instruction mask, fuction code unspecified.
+        Currently used by U and J -type instructions"""
         opcode = 0b1111111
         insn = opcode
         return insn
 
     def gen_c_opfunc4_mask(self):
+        """Compressed instruction mask, func4 specified.
+        Currently used by CR-type instructions only"""
         opcode = 0b11
         funct4 = 0b1111 << 12
-        insn = opcode + funct4
+        insn = opcode | funct4
         return insn
 
     def gen_c_opfunc3_mask(self):
+        """Compressed instruction mask, func3 specified.
+        Currently used by CI, CSS, CIW, CL, CS, Cb, CJ -type instructions"""
         opcode = 0b11
         funct3 = 0b111 << 13
-        insn = opcode + funct3
+        insn = opcode | funct3
         return insn
 
     def gen_c_op_mask(self):
+        """Compressed instruction mask, fuction code unspecified.
+        Currently unused"""
         insn = 0b11
         return insn
 
-class Unknown_Insn(Insn):
-    def __init__(self, len):
-        super()
-        self.len = len
-        self.type = 'unknown'
-
-    def gen_instr_assembly(self, byte_stream):
-        return hex(byte_stream)
-
 
 class R_Insn(Insn):
+    """R-type instruction. Specifies both 3 bit and 7 bit function codes.
+    format:
+        |31    25|24 20|19 15|14    12|11 7|6      0|
+        | funct7 | rs2 | rs1 | funct3 | rd | opcode |"""
     def __init__(self, elem):
         super().__init__(elem)
-        self.funct3 = int(elem.attrib['funct3'],16)
-        self.funct7 = int(elem.attrib['funct7'],16)
+        self.funct3 = int(elem.attrib['funct3'], 16)
+        self.funct7 = int(elem.attrib['funct7'], 16)
         self.insn = self.gen_insn()
         self.mask = self.gen_insn_mask()
         self.len = 4
@@ -302,26 +327,31 @@ class R_Insn(Insn):
         return self.gen_opfunc3funct7_mask()
 
     def gen_instr_assembly(self, byte_stream):
-        raw_bytes = format(byte_stream, '032b')[::-1]
-        insn = self.str
-        opcode = hex(int(raw_bytes[6::-1], 2))
-        rd = int(raw_bytes[11:6:-1], 2)
-        funct3 = hex(int(raw_bytes[14:11:-1], 2))
-        rs1 = int(raw_bytes[19:14:-1], 2)       
-        rs2 = int(raw_bytes[24:19:-1], 2)
-        funct7 = hex(int(raw_bytes[:24:-1], 2))
-        insn = insn.replace ('$opcode', opcode)
-        insn = insn.replace ('$rd', self._x_reg_names[rd])
-        insn = insn.replace ('$funct3', funct3)
-        insn = insn.replace ('$rs1', self._x_reg_names[rs1])
-        insn = insn.replace ('$rs2', self._x_reg_names[rs2])
-        insn = insn.replace ('$funct7', funct7)
-        return insn
+        raw_bits = format(byte_stream, '032b')[::-1]
+
+        opcode = hex(int(raw_bits[6::-1], 2))
+        rd = int(raw_bits[11:6:-1], 2)
+        funct3 = hex(int(raw_bits[14:11:-1], 2))
+        rs1 = int(raw_bits[19:14:-1], 2)
+        rs2 = int(raw_bits[24:19:-1], 2)
+        funct7 = hex(int(raw_bits[:24:-1], 2))
+
+        return self.format_string.replace('$opcode', opcode) \
+            .replace('$rd', self._x_reg_names[rd]) \
+            .replace('$funct3', funct3) \
+            .replace('$rs1', self._x_reg_names[rs1]) \
+            .replace('$rs2', self._x_reg_names[rs2]) \
+            .replace('$funct7', funct7)
+
 
 class I_Insn(Insn):
+    """I-type instruction. Specifies 3 bit function code.
+    format:
+        |31       20|19 15|14    12|11 7|6      0|
+        | imm[11:0] | rs1 | funct3 | rd | opcode |"""
     def __init__(self, elem):
         super().__init__(elem)
-        self.funct3 = int(elem.attrib['funct3'],16)
+        self.funct3 = int(elem.attrib['funct3'], 16)
         self.insn = self.gen_insn()
         self.mask = self.gen_insn_mask()
         self.len = 4
@@ -333,25 +363,31 @@ class I_Insn(Insn):
         return self.gen_opfunc3_mask()
 
     def gen_instr_assembly(self, byte_stream):
-        raw_bytes = format(byte_stream, '032b')[::-1]
-        insn = self.str
-        opcode = hex(int(raw_bytes[6::-1], 2))
-        rd = int(raw_bytes[11:6:-1], 2)
-        funct3 = hex(int(raw_bytes[14:11:-1], 2))
-        rs1 = int(raw_bytes[19:14:-1], 2)       
-        imm = int(raw_bytes[:19:-1], 2)
-        insn = insn.replace ('$opcode', opcode)
-        insn = insn.replace ('$funct3', funct3)
-        insn = insn.replace ('$rd', self._x_reg_names[rd])
-        insn = insn.replace ('$rs1', self._x_reg_names[rs1])
-        insn = insn.replace ('$imm', f'{(imm&0b011111111111)-(imm&0b100000000000)}')
-        insn = insn.replace ('$uimm', f'{imm}')
-        return insn
+        raw_bits = format(byte_stream, '032b')[::-1]
+
+        opcode = hex(int(raw_bits[6::-1], 2))
+        rd = int(raw_bits[11:6:-1], 2)
+        funct3 = hex(int(raw_bits[14:11:-1], 2))
+        rs1 = int(raw_bits[19:14:-1], 2)
+        imm = int(raw_bits[:19:-1], 2)
+
+        return self.format_string.replace('$opcode', opcode) \
+            .replace('$rd', self._x_reg_names[rd]) \
+            .replace('$funct3', funct3) \
+            .replace('$rs1', self._x_reg_names[rs1]) \
+            .replace('$imm',
+                     f'{(imm&0b011111111111) -(imm&0b100000000000)}') \
+            .replace('$uimm', f'{imm}')
+
 
 class S_Insn(Insn):
+    """S-type instruction. Specifies 3 bit function code.
+    format:
+        |31       25|24 20|19 15|14    12|11       7|6      0|
+        | imm[11:5] | rs2 | rs1 | funct3 | imm[4:0] | opcode |"""
     def __init__(self, elem):
         super().__init__(elem)
-        self.funct3 = int(elem.attrib['funct3'],16)
+        self.funct3 = int(elem.attrib['funct3'], 16)
         self.insn = self.gen_insn()
         self.mask = self.gen_insn_mask()
         self.len = 4
@@ -363,26 +399,33 @@ class S_Insn(Insn):
         return self.gen_opfunc3_mask()
 
     def gen_instr_assembly(self, byte_stream):
-        raw_bytes = format(byte_stream, '032b')[::-1]
-        insn = self.str
-        opcode = hex(int(raw_bytes[6::-1], 2))
-        funct3 = hex(int(raw_bytes[14:11:-1], 2))
-        rs1 = int(raw_bytes[19:14:-1], 2)       
-        rs2 = int(raw_bytes[24:19:-1], 2)
-        imm = (int(raw_bytes[11:6:-1], 2)) \
-            + (int(raw_bytes[:24:-1], 2) << 5)
-        insn = insn.replace ('$opcode', opcode)
-        insn = insn.replace ('$funct3', funct3)
-        insn = insn.replace ('$rs1', self._x_reg_names[rs1])
-        insn = insn.replace ('$rs2', self._x_reg_names[rs2])
-        insn = insn.replace ('$imm', f'{(imm&0b011111111111)-(imm&0b100000000000)}')
-        insn = insn.replace ('$uimm', f'{imm}')
-        return insn
+        raw_bits = format(byte_stream, '032b')[::-1]
 
+        opcode = hex(int(raw_bits[6::-1], 2))
+        funct3 = hex(int(raw_bits[14:11:-1], 2))
+        rs1 = int(raw_bits[19:14:-1], 2)
+        rs2 = int(raw_bits[24:19:-1], 2)
+        imm = (int(raw_bits[11:6:-1], 2)) \
+            | (int(raw_bits[:24:-1], 2) << 5)
+
+        return self.format_string.replace('$opcode', opcode) \
+            .replace('$funct3', funct3) \
+            .replace('$rs1', self._x_reg_names[rs1]) \
+            .replace('$rs2', self._x_reg_names[rs2]) \
+            .replace('$imm',
+                     f'{(imm&0b011111111111)-(imm&0b100000000000)}') \
+            .replace('$uimm', f'{imm}')
+
+
+# FIXME: Decoding B instructions currently seems to be broken
 class B_Insn(Insn):
+    """B-type instruction. Specifies 3 bit function code.
+    format:
+        |31          25|24 20|19 15|14    12|11          7|6      0|
+        | imm[12|10:5] | rs2 | rs1 | funct3 | imm[4:1|11] | opcode |"""
     def __init__(self, elem):
         super().__init__(elem)
-        self.funct3 = int(elem.attrib['funct3'],16)
+        self.funct3 = int(elem.attrib['funct3'], 16)
         self.insn = self.gen_insn()
         self.mask = self.gen_insn_mask()
         self.len = 4
@@ -394,25 +437,31 @@ class B_Insn(Insn):
         return self.gen_opfunc3_mask()
 
     def gen_instr_assembly(self, byte_stream):
-        raw_bytes = format(byte_stream, '032b')[::-1]
-        insn = self.str
-        opcode = hex(int(raw_bytes[6::-1], 2))
-        funct3 = hex(int(raw_bytes[14:11:-1], 2))
-        rs1 = int(raw_bytes[19:14:-1], 2)       
-        rs2 = int(raw_bytes[24:19:-1], 2)
-        imm = (int(raw_bytes[11:7:-1], 2) << 1) \
-            + (int(raw_bytes[30:24:-1], 2) << 5) \
-            + (int(raw_bytes[7], 2) << 11) \
-            + (int(raw_bytes[31], 2) << 12)
-        insn = insn.replace ('$opcode', opcode)
-        insn = insn.replace ('$funct3', funct3)
-        insn = insn.replace ('$rs1', self._x_reg_names[rs1])
-        insn = insn.replace ('$rs2', self._x_reg_names[rs2])
-        insn = insn.replace ('$imm', f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
-        insn = insn.replace ('$uimm', f'{imm}')
-        return insn
+        raw_bits = format(byte_stream, '032b')[::-1]
+
+        opcode = hex(int(raw_bits[6::-1], 2))
+        funct3 = hex(int(raw_bits[14:11:-1], 2))
+        rs1 = int(raw_bits[19:14:-1], 2)
+        rs2 = int(raw_bits[24:19:-1], 2)
+        imm = (int(raw_bits[11:7:-1], 2) << 1) \
+            | (int(raw_bits[30:24:-1], 2) << 5) \
+            | (int(raw_bits[7], 2) << 11) \
+            | (int(raw_bits[31], 2) << 12)
+
+        return self.format_string.replace('$opcode', opcode) \
+            .replace('$funct3', funct3) \
+            .replace('$rs1', self._x_reg_names[rs1]) \
+            .replace('$rs2', self._x_reg_names[rs2]) \
+            .replace('$imm',
+                     f'{(imm&0b0111111111111)-(imm&0b1000000000000)}') \
+            .replace('$uimm', f'{imm}')
+
 
 class U_Insn(Insn):
+    """U-type instruction. Specifies no function code.
+    format:
+        |31        12|11 7|6      0|
+        | imm[31:12] | rd | opcode |"""
     def __init__(self, elem):
         super().__init__(elem)
         self.insn = self.gen_insn()
@@ -426,23 +475,27 @@ class U_Insn(Insn):
         return self.gen_op_mask()
 
     def gen_instr_assembly(self, byte_stream):
-        raw_bytes = format(byte_stream, '032b')[::-1]
-        insn = self.str
-        opcode = hex(int(raw_bytes[6::-1], 2))
-        rd = int(raw_bytes[11:6:-1], 2)       
-        imm = (int(raw_bytes[:11:-1], 2))
-        insn = insn.replace ('$opcode', opcode)
-        insn = insn.replace ('$rd', self._x_reg_names[rd])
-        insn = insn.replace ('$imm', f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
-        insn = insn.replace ('$uimm', f'{imm}')
-        return insn
+        raw_bits = format(byte_stream, '032b')[::-1]
+
+        opcode = hex(int(raw_bits[6::-1], 2))
+        rd = int(raw_bits[11:6:-1], 2)
+        imm = (int(raw_bits[:11:-1], 2))
+
+        return self.format_string.replace('$opcode', opcode) \
+            .replace('$opcode', opcode) \
+            .replace('$rd', self._x_reg_names[rd]) \
+            .replace('$imm',
+                     f'{(imm&0b0111111111111)-(imm&0b1000000000000)}') \
+            .replace('$uimm', f'{imm}')
+
 
 class J_Insn(Insn):
+    """J-type instruction. Specifies no function code.
+    format:
+        |31                   12|11 7|6      0|
+        | imm[20|10:1|11|19:12] | rd | opcode |"""
     def __init__(self, elem):
         super().__init__(elem)
-        self.opcode = int(elem.attrib['opcode'],16)
-        self.str = elem.attrib['str']
-        self.type = elem.attrib['type']
         self.insn = self.gen_insn()
         self.mask = self.gen_insn_mask()
         self.len = 4
@@ -454,25 +507,31 @@ class J_Insn(Insn):
         return self.gen_op_mask()
 
     def gen_instr_assembly(self, byte_stream):
-        raw_bytes = format(byte_stream, '032b')[::-1]
-        insn = self.str
-        opcode = hex(int(raw_bytes[6::-1], 2))
-        rd = int(raw_bytes[11:6:-1], 2)       
-        imm = (int(raw_bytes[19:11:-1], 2) << 12) \
-            + (int(raw_bytes[20], 2) << 11) \
-            + (int(raw_bytes[30:20:-1], 2) << 1) \
-            + (int(raw_bytes[31], 2) << 20) 
-        insn = insn.replace ('$opcode', opcode)
-        insn = insn.replace ('$rd', self._x_reg_names[rd])
-        insn = insn.replace ('$imm', f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
-        insn = insn.replace ('$uimm', f'{imm}')
-        return insn
+        raw_bits = format(byte_stream, '032b')[::-1]
+
+        opcode = hex(int(raw_bits[6::-1], 2))
+        rd = int(raw_bits[11:6:-1], 2)
+        imm = (int(raw_bits[19:11:-1], 2) << 12) \
+            + (int(raw_bits[20], 2) << 11) \
+            + (int(raw_bits[30:20:-1], 2) << 1) \
+            + (int(raw_bits[31], 2) << 20)
+        
+        return self.format_string.replace('$opcode', opcode) \
+            .replace('$opcode', opcode) \
+            .replace('$rd', self._x_reg_names[rd]) \
+            .replace('$imm',
+                     f'{(imm&0b0111111111111)-(imm&0b1000000000000)}') \
+            .replace('$uimm', f'{imm}')
 
 
 class CR_Insn(Insn):
+    """CR-type instruction. Specifies 4 bit function code.
+    format:
+        |15    12|11     7|6   2|1      0|
+        | funct4 | rd/rs1 | rs2 | opcode |"""
     def __init__(self, elem):
         super().__init__(elem)
-        self.funct4 = int(elem.attrib['funct4'],16)
+        self.funct4 = int(elem.attrib['funct4'], 16)
         self.insn = self.gen_insn()
         self.mask = self.gen_insn_mask()
         self.len = 2
@@ -484,23 +543,28 @@ class CR_Insn(Insn):
         return self.gen_c_opfunc4_mask()
 
     def gen_instr_assembly(self, byte_stream):
-        raw_bytes = format(byte_stream, '016b')[::-1]
-        insn = self.str
-        opcode = hex(int(raw_bytes[1::-1], 2))
-        rs2 = int(raw_bytes[6:1:-1], 2)
-        rds1 = int(raw_bytes[11:6:-1], 2)       
-        funct4 = hex(int(raw_bytes[:11:-1], 2))
-        insn = insn.replace ('$opcode', opcode)
-        insn = insn.replace ('$rd', self._x_reg_names[rds1])
-        insn = insn.replace ('$rs1', self._x_reg_names[rds1])
-        insn = insn.replace ('$rs2', self._x_reg_names[rs2])
-        insn = insn.replace ('$funct4', funct4)
-        return insn
+        raw_bits = format(byte_stream, '016b')[::-1]
+
+        opcode = hex(int(raw_bits[1::-1], 2))
+        rs2 = int(raw_bits[6:1:-1], 2)
+        rds1 = int(raw_bits[11:6:-1], 2)
+        funct4 = hex(int(raw_bits[:11:-1], 2))
+
+        return self.format_string.replace('$opcode', opcode) \
+            .replace('$rd', self._x_reg_names[rds1]) \
+            .replace('$rs1', self._x_reg_names[rds1]) \
+            .replace('$rs2', self._x_reg_names[rs2]) \
+            .replace('$funct4', funct4)
+
 
 class CI_Insn(Insn):
+    """CI-type instruction. Specifies 3 bit function code.
+    format:
+        |15    13| 12  |11     7|6   2|1      0|
+        | funct3 | imm | rd/rs1 | imm | opcode |"""
     def __init__(self, elem):
         super().__init__(elem)
-        self.funct3 = int(elem.attrib['funct3'],16)
+        self.funct3 = int(elem.attrib['funct3'], 16)
         self.insn = self.gen_insn()
         self.mask = self.gen_insn_mask()
         self.len = 2
@@ -512,25 +576,31 @@ class CI_Insn(Insn):
         return self.gen_c_opfunc3_mask()
 
     def gen_instr_assembly(self, byte_stream):
-        raw_bytes = format(byte_stream, '016b')[::-1]
-        insn = self.str
-        opcode = hex(int(raw_bytes[1::-1], 2))
-        rd = int(raw_bytes[11:6:-1], 2)       
-        imm = (int(raw_bytes[6:1:-1], 2)) \
-            + (int(raw_bytes[12], 2) << 5)
-        funct3 = hex(int(raw_bytes[:12:-1], 2))
-        insn = insn.replace ('$opcode', opcode)
-        insn = insn.replace ('$rd', self._x_reg_names[rd])
-        insn = insn.replace ('$rs1', self._x_reg_names[rd])
-        insn = insn.replace ('$imm', f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
-        insn = insn.replace ('$uimm', f'{imm}')
-        insn = insn.replace ('$funct3', funct3)
-        return insn
+        raw_bits = format(byte_stream, '016b')[::-1]
+
+        opcode = hex(int(raw_bits[1::-1], 2))
+        rd = int(raw_bits[11:6:-1], 2)
+        imm = (int(raw_bits[6:1:-1], 2)) \
+            + (int(raw_bits[12], 2) << 5)
+        funct3 = hex(int(raw_bits[:12:-1], 2))
+
+        return self.format_string.replace('$opcode', opcode) \
+            .replace('$rd', self._x_reg_names[rd]) \
+            .replace('$rs1', self._x_reg_names[rd]) \
+            .replace('$imm',
+                     f'{(imm&0b0111111111111)-(imm&0b1000000000000)}') \
+            .replace('$uimm', f'{imm}') \
+            .replace('$funct3', funct3) \
+
 
 class CSS_Insn(Insn):
+    """CSS-type instruction. Specifies 3 bit function code.
+    format:
+        |15    13|12  7|6   2|1      0|
+        | funct3 | imm | rs2 | opcode |"""
     def __init__(self, elem):
         super().__init__(elem)
-        self.funct3 = int(elem.attrib['funct3'],16)
+        self.funct3 = int(elem.attrib['funct3'], 16)
         self.insn = self.gen_insn()
         self.mask = self.gen_insn_mask()
         self.len = 2
@@ -542,26 +612,31 @@ class CSS_Insn(Insn):
         return self.gen_c_opfunc3_mask()
 
     def gen_instr_assembly(self, byte_stream):
-        raw_bytes = format(byte_stream, '016b')[::-1]
-        insn = self.str
-        opcode = hex(int(raw_bytes[1::-1], 2))
-        rd = int(raw_bytes[11:6:-1], 2)    
-        imm = (int(raw_bytes[12:8:-1], 2) << 2) \
-            + (int(raw_bytes[8:6:-1], 2) << 6)
-        funct3 = hex(int(raw_bytes[:12:-1], 2))
-        insn = insn.replace ('$opcode', opcode)
-        insn = insn.replace ('$rd', self._x_reg_names[rd])
-        insn = insn.replace ('$rs1', self._x_reg_names[rd])
-        insn = insn.replace ('$imm', f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
-        insn = insn.replace ('$uimm', f'{imm}')
-        insn = insn.replace ('$funct3', funct3)
+        raw_bits = format(byte_stream, '016b')[::-1]
+        insn = self.format_string
+        opcode = hex(int(raw_bits[1::-1], 2))
+        rd = int(raw_bits[11:6:-1], 2)
+        imm = (int(raw_bits[12:8:-1], 2) << 2) \
+            + (int(raw_bits[8:6:-1], 2) << 6)
+        funct3 = hex(int(raw_bits[:12:-1], 2))
+        insn = insn.replace('$opcode', opcode)
+        insn = insn.replace('$rd', self._x_reg_names[rd])
+        insn = insn.replace('$rs1', self._x_reg_names[rd])
+        insn = insn.replace('$imm',
+                            f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
+        insn = insn.replace('$uimm', f'{imm}')
+        insn = insn.replace('$funct3', funct3)
         return insn
 
 
 class CIW_Insn(Insn):
+    """CIW-type instruction. Specifies 3 bit function code.
+    format:
+        |15    13|12  5|4    2|1      0|
+        | funct3 | imm | rsd' | opcode |"""
     def __init__(self, elem):
         super().__init__(elem)
-        self.funct3 = int(elem.attrib['funct3'],16)
+        self.funct3 = int(elem.attrib['funct3'], 16)
         self.insn = self.gen_insn()
         self.mask = self.gen_insn_mask()
         self.len = 2
@@ -573,26 +648,32 @@ class CIW_Insn(Insn):
         return self.gen_c_opfunc3_mask()
 
     def gen_instr_assembly(self, byte_stream):
-        raw_bytes = format(byte_stream, '016b')[::-1]
-        insn = self.str
-        opcode = hex(int(raw_bytes[1::-1], 2))
-        rd = int(raw_bytes[4:1:-1], 2)       
-        imm = (int(raw_bytes[5], 2) << 3) \
-            + (int(raw_bytes[6], 2) << 2) \
-            + (int(raw_bytes[12:10:-1], 2) << 4) \
-            + (int(raw_bytes[10:6:-1], 2) << 6)
-        funct3 = hex(int(raw_bytes[:12:-1], 2))
-        insn = insn.replace ('$opcode', opcode)
-        insn = insn.replace ('$rd', self._cx_reg_names[rd])
-        insn = insn.replace ('$imm', f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
-        insn = insn.replace ('$uimm', f'{imm}')
-        insn = insn.replace ('$funct3', funct3)
+        raw_bits = format(byte_stream, '016b')[::-1]
+        insn = self.format_string
+        opcode = hex(int(raw_bits[1::-1], 2))
+        rd = int(raw_bits[4:1:-1], 2)
+        imm = (int(raw_bits[5], 2) << 3) \
+            + (int(raw_bits[6], 2) << 2) \
+            + (int(raw_bits[12:10:-1], 2) << 4) \
+            + (int(raw_bits[10:6:-1], 2) << 6)
+        funct3 = hex(int(raw_bits[:12:-1], 2))
+        insn = insn.replace('$opcode', opcode)
+        insn = insn.replace('$rd', self._cx_reg_names[rd])
+        insn = insn.replace('$imm',
+                            f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
+        insn = insn.replace('$uimm', f'{imm}')
+        insn = insn.replace('$funct3', funct3)
         return insn
+
 
 class CL_Insn(Insn):
+    """CL-type instruction. Specifies 3 bit function code.
+    format:
+        |15    13|12 10|9    7|6   5|4    2|1      0|
+        | funct3 | imm | rs1' | imm | rsd' | opcode |"""
     def __init__(self, elem):
         super().__init__(elem)
-        self.funct3 = int(elem.attrib['funct3'],16)
+        self.funct3 = int(elem.attrib['funct3'], 16)
         self.insn = self.gen_insn()
         self.mask = self.gen_insn_mask()
         self.len = 2
@@ -604,27 +685,33 @@ class CL_Insn(Insn):
         return self.gen_c_opfunc3_mask()
 
     def gen_instr_assembly(self, byte_stream):
-        raw_bytes = format(byte_stream, '016b')[::-1]
-        insn = self.str
-        opcode = hex(int(raw_bytes[1::-1], 2))
-        rd = int(raw_bytes[4:1:-1], 2)   
-        rs1 = int(raw_bytes[9:6:-1], 2)      
-        imm = (int(raw_bytes[5], 2) << 2) \
-            + (int(raw_bytes[6], 2) << 6) \
-            + (int(raw_bytes[12:10:-1], 2) << 3)
-        funct3 = hex(int(raw_bytes[:12:-1], 2))
-        insn = insn.replace ('$opcode', opcode)
-        insn = insn.replace ('$rd', self._cx_reg_names[rd])
-        insn = insn.replace ('$rs1', self._cx_reg_names[rs1])
-        insn = insn.replace ('$imm', f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
-        insn = insn.replace ('$uimm', f'{imm}')
-        insn = insn.replace ('$funct3', funct3)
+        raw_bits = format(byte_stream, '016b')[::-1]
+        insn = self.format_string
+        opcode = hex(int(raw_bits[1::-1], 2))
+        rd = int(raw_bits[4:1:-1], 2)
+        rs1 = int(raw_bits[9:6:-1], 2)
+        imm = (int(raw_bits[5], 2) << 2) \
+            + (int(raw_bits[6], 2) << 6) \
+            + (int(raw_bits[12:10:-1], 2) << 3)
+        funct3 = hex(int(raw_bits[:12:-1], 2))
+        insn = insn.replace('$opcode', opcode)
+        insn = insn.replace('$rd', self._cx_reg_names[rd])
+        insn = insn.replace('$rs1', self._cx_reg_names[rs1])
+        insn = insn.replace('$imm',
+                            f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
+        insn = insn.replace('$uimm', f'{imm}')
+        insn = insn.replace('$funct3', funct3)
         return insn
+
 
 class CS_Insn(Insn):
+    """CS-type instruction. Specifies 3 bit function code.
+    format:
+        |15    13|12 10|9    7|6   5|4    2|1      0|
+        | funct3 | imm | rs1' | imm | rs2' | opcode |"""
     def __init__(self, elem):
         super().__init__(elem)
-        self.funct3 = int(elem.attrib['funct3'],16)
+        self.funct3 = int(elem.attrib['funct3'], 16)
         self.insn = self.gen_insn()
         self.mask = self.gen_insn_mask()
         self.len = 2
@@ -636,27 +723,34 @@ class CS_Insn(Insn):
         return self.gen_c_opfunc3_mask()
 
     def gen_instr_assembly(self, byte_stream):
-        raw_bytes = format(byte_stream, '016b')[::-1]
-        insn = self.str
-        opcode = hex(int(raw_bytes[1::-1], 2))
-        rd = int(raw_bytes[4:1:-1], 2)   
-        rs1 = int(raw_bytes[9:6:-1], 2)      
-        imm = (int(raw_bytes[5], 2) << 2) \
-            + (int(raw_bytes[6], 2) << 6) \
-            + (int(raw_bytes[12:10:-1], 2) << 3)
-        funct3 = hex(int(raw_bytes[:12:-1], 2))
-        insn = insn.replace ('$opcode', opcode)
-        insn = insn.replace ('$rd', self._cx_reg_names[rd])
-        insn = insn.replace ('$rs1', self._cx_reg_names[rs1])
-        insn = insn.replace ('$imm', f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
-        insn = insn.replace ('$uimm', f'{imm}')
-        insn = insn.replace ('$funct3', funct3)
+        raw_bits = format(byte_stream, '016b')[::-1]
+        insn = self.format_string
+        opcode = hex(int(raw_bits[1::-1], 2))
+        rd = int(raw_bits[4:1:-1], 2)
+        rs2 = int(raw_bits[9:6:-1], 2)
+        imm = (int(raw_bits[5], 2) << 2) \
+            + (int(raw_bits[6], 2) << 6) \
+            + (int(raw_bits[12:10:-1], 2) << 3)
+        funct3 = hex(int(raw_bits[:12:-1], 2))
+        insn = insn.replace('$opcode', opcode)
+        insn = insn.replace('$rd', self._cx_reg_names[rd])
+        insn = insn.replace('$rs1', self._cx_reg_names[rd])
+        insn = insn.replace('$rs2', self._cx_reg_names[rs2])
+        insn = insn.replace('$imm',
+                            f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
+        insn = insn.replace('$uimm', f'{imm}')
+        insn = insn.replace('$funct3', funct3)
         return insn
+
 
 class CB_Insn(Insn):
+    """CB-type instruction. Specifies 3 bit function code.
+    format:
+        |15    13|12    10|9    7|6      2|1      0|
+        | funct3 | offset | rs1' | offset | opcode |"""
     def __init__(self, elem):
         super().__init__(elem)
-        self.funct3 = int(elem.attrib['funct3'],16)
+        self.funct3 = int(elem.attrib['funct3'], 16)
         self.insn = self.gen_insn()
         self.mask = self.gen_insn_mask()
         self.len = 2
@@ -668,25 +762,31 @@ class CB_Insn(Insn):
         return self.gen_c_opfunc3_mask()
 
     def gen_instr_assembly(self, byte_stream):
-        raw_bytes = format(byte_stream, '016b')[::-1]
-        insn = self.str
-        opcode = hex(int(raw_bytes[1::-1], 2))  
-        rs1 = int(raw_bytes[9:6:-1], 2)      
-        imm = (int(raw_bytes[2], 2) << 5) \
-            + (int(raw_bytes[6:2:-1], 2) << 1) \
-            + (int(raw_bytes[12:9:-1], 2) << 6)
-        funct3 = hex(int(raw_bytes[:12:-1], 2))
-        insn = insn.replace ('$opcode', opcode)
-        insn = insn.replace ('$rs1', self._cx_reg_names[rs1])
-        insn = insn.replace ('$imm', f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
-        insn = insn.replace ('$uimm', f'{imm}')
-        insn = insn.replace ('$funct3', funct3)
+        raw_bits = format(byte_stream, '016b')[::-1]
+        insn = self.format_string
+        opcode = hex(int(raw_bits[1::-1], 2))
+        rs1 = int(raw_bits[9:6:-1], 2)
+        imm = (int(raw_bits[2], 2) << 5) \
+            + (int(raw_bits[6:2:-1], 2) << 1) \
+            + (int(raw_bits[12:9:-1], 2) << 6)
+        funct3 = hex(int(raw_bits[:12:-1], 2))
+        insn = insn.replace('$opcode', opcode)
+        insn = insn.replace('$rs1', self._cx_reg_names[rs1])
+        insn = insn.replace('$imm',
+                            f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
+        insn = insn.replace('$uimm', f'{imm}')
+        insn = insn.replace('$funct3', funct3)
         return insn
+
 
 class CJ_Insn(Insn):
+    """CJ-type instruction. Specifies 3 bit function code.
+    format:
+        |15    13|12          2|1      0|
+        | funct3 | jump target | opcode |"""
     def __init__(self, elem):
         super().__init__(elem)
-        self.funct3 = int(elem.attrib['funct3'],16)
+        self.funct3 = int(elem.attrib['funct3'], 16)
         self.insn = self.gen_insn()
         self.mask = self.gen_insn_mask()
         self.len = 2
@@ -698,35 +798,38 @@ class CJ_Insn(Insn):
         return self.gen_c_opfunc3_mask()
 
     def gen_instr_assembly(self, byte_stream):
-        raw_bytes = format(byte_stream, '016b')[::-1]
-        insn = self.str
-        opcode = hex(int(raw_bytes[1::-1], 2))     
-        imm = (int(raw_bytes[2], 2) << 5) \
-            + (int(raw_bytes[6:2:-1], 2) << 1) \
-            + (int(raw_bytes[12:6:-1], 2) << 6)
-        funct3 = hex(int(raw_bytes[:12:-1], 2))
-        insn = insn.replace ('$opcode', opcode)
-        insn = insn.replace ('$imm', f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
-        insn = insn.replace ('$uimm', f'{imm}')
-        insn = insn.replace ('$funct3', funct3)
+        raw_bits = format(byte_stream, '016b')[::-1]
+        insn = self.format_string
+        opcode = hex(int(raw_bits[1::-1], 2))
+        imm = (int(raw_bits[2], 2) << 5) \
+            + (int(raw_bits[6:2:-1], 2) << 1) \
+            + (int(raw_bits[12:6:-1], 2) << 6)
+        funct3 = hex(int(raw_bits[:12:-1], 2))
+        insn = insn.replace('$opcode', opcode)
+        insn = insn.replace('$imm',
+                            f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
+        insn = insn.replace('$uimm', f'{imm}')
+        insn = insn.replace('$funct3', funct3)
         return insn
 
-#####################################################################
-##
-## The following is a temporary place holder while the real
-## disassembler is developed.  This reads an XML file, but the format
-## is not very good, and it doesn't allow for all of the fancy format
-## strings that the real disassembler is going to support.
-##
+####################################################################
+#
+# The following is a temporary place holder while the real
+# disassembler is developed.  This reads an XML file, but the format
+# is not very good, and it doesn't allow for all of the fancy format
+# strings that the real disassembler is going to support.
+#
+
+
+# FIXME: Should this be here?
+custom_instruction_path = RISCVDisassemblerFilename()
+
 
 
 class CustomInstructionHandler:
     def __init__(self):
         self._root = custom_instruction_path.fetch_xml()
         self._insns = self.create_insns(self._root)
-
-    def gen_Unknown_Insn(self, len):
-        return Unknown_Insn(len)
 
     def gen_R_insn(self, elem):
         return R_Insn(elem)
@@ -773,34 +876,33 @@ class CustomInstructionHandler:
     def create_insns(self, root):
         masks = []
         gen_insn = {
-            "R" : self.gen_R_insn,
-            "I" : self.gen_I_insn,
-            "S" : self.gen_S_insn,
-            "B" : self.gen_B_insn,
-            "SB" : self.gen_B_insn,
-            "U" : self.gen_U_insn,
-            "J" : self.gen_J_insn,
-            "UJ" : self.gen_J_insn,
-            "CR" : self.gen_CR_insn,
-            "CI" : self.gen_CI_insn,
-            "CSS" : self.gen_CSS_insn,
-            "CIW" : self.gen_CIW_insn,
-            "CL" : self.gen_CL_insn,
-            "CS" : self.gen_CS_insn,
-            "CB" : self.gen_CB_insn,
-            "CJ" : self.gen_CJ_insn
+            "R": self.gen_R_insn,
+            "I": self.gen_I_insn,
+            "S": self.gen_S_insn,
+            "B": self.gen_B_insn,
+            "SB": self.gen_B_insn,
+            "U": self.gen_U_insn,
+            "J": self.gen_J_insn,
+            "UJ": self.gen_J_insn,
+            "CR": self.gen_CR_insn,
+            "CI": self.gen_CI_insn,
+            "CSS": self.gen_CSS_insn,
+            "CIW": self.gen_CIW_insn,
+            "CL": self.gen_CL_insn,
+            "CS": self.gen_CS_insn,
+            "CB": self.gen_CB_insn,
+            "CJ": self.gen_CJ_insn
         }
         insns = root.findall('instruction')
         for elem in insns:
             try:
-                insn = gen_insn[elem.attrib['type']](elem)        
+                insn = gen_insn[elem.attrib['type']](elem)
                 masks.append(insn)
             except(KeyError):
                 print("Unknown Instruction Type: " + elem.attrib['type'])
         return masks
 
     def compare_with_insns(self, byte, len):
-        # print("")
         for insn in self._insns:
             if(self.compare_with_insn(byte, insn, len)):
                 return insn
@@ -808,26 +910,20 @@ class CustomInstructionHandler:
 
     def compare_with_insn(self, byte, insn, len):
         if(len != insn.len):
-            return 0
-        # print(insn.type)
-        # print(format(insn.mask, '016b'))
-        # print(format(byte, '016b'))
-        # print(format(insn.insn, '016b'))
-        # print(format((byte & insn.mask), '016b'))
+            return False
         return (insn.insn == (byte & insn.mask))
 
-    def disassemble(self,insn, len, info):
+    def disassemble(self, insn, len, info):
         insn_type = self.compare_with_insns(insn, len)
         if(insn_type is not None):
             return insn_type.gen_instr_assembly(insn)
         return None
 
-
-#####################################################################
-##
-## A class that performs syntax highlighting.  Our actual disassembler
-## class will inherit from this, and call back into this class to
-## perform syntax highlighting.
+####################################################################
+#
+# A class that performs syntax highlighting.  Our actual disassembler
+# class will inherit from this, and call back into this class to
+# perform syntax highlighting.
 
 
 class SyntaxHighlightingDisassembler(Disassembler):
@@ -841,19 +937,20 @@ class SyntaxHighlightingDisassembler(Disassembler):
         return None
 
 
-#####################################################################
-##
-## This is the actual hook into GDB, this code is closer to production
-## ready, though we might find things that need improviing once users
-## start to test this.
-##
+####################################################################
+#
+# This is the actual hook into GDB, this code is closer to production
+# ready, though we might find things that need improviing once users
+# start to test this.
+#
 
 
 class RISCVDisassembler(SyntaxHighlightingDisassembler):
     def __init__(self):
         super(RISCVDisassembler, self).__init__("RISCVDisassembler")
         self._disassembler_cache = {}
-        self._callback = lambda ev: self._discard_cached_disassembler(ev.connection)
+        self._callback = lambda ev:\
+            self._discard_cached_disassembler(ev.connection)
         gdb.events.connection_removed.connect(self._callback)
 
     def __del__(self):
@@ -907,12 +1004,13 @@ class RISCVDisassembler(SyntaxHighlightingDisassembler):
         super(RISCVDisassembler, self).__call__(info)
 
 
-#####################################################################
-##
-## Register the disassembler callback for every RISC-V architecture.
-## We create just a single disassembler object, and register it for
-## every architecture we're insterested in.
-##
+####################################################################
+#
+# Register the disassembler callback for every RISC-V architecture.
+# We create just a single disassembler object, and register it for
+# every architecture we're insterested in.
+#
+
 
 riscv_disassembler = RISCVDisassembler()
 
