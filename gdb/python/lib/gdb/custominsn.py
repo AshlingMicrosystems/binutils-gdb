@@ -4,26 +4,13 @@ from gdb.disassembler import Disassembler
 import xml.etree.ElementTree as ElementTree
 from os.path import expanduser
 
-# This is an example script for the Buffalo custom instruction
-# disassembler, it has a very simplistic disassembler core which is
-# really only geared toward disassembling two instructions:
-#
-# asm (".insn r 0x0b, 0x0, 0x0, x3, x4, x5" ::: "memory");
-# asm (".insn ca 0x1, 0x27, 0x2, x8, x9" ::: "memory");
-#
-# Here are two XML files that can be used with this script and the
-# above instructions:
-#
-# <instructions>
-#   <instruction length="4" type="r" mask="0xfe00707f" value="0x0000000b" mnemonic="blah"/>
-#   <instruction length="2" type="ca" mask="0xfc63" value="0x9c41" mnemonic="c.blah"/>
-# </instructions>
-#
 # Here's a second XML file:
 #
 # <instructions>
-#   <instruction length="4" type="r" mask="0xfe00707f" value="0x0000000b" mnemonic="woof"/>
-#   <instruction length="2" type="ca" mask="0xfc63" value="0x9c41" mnemonic="c.woof"/>
+#   <instruction length="4" type="r" mask="0xfe00707f"
+#       value="0x0000000b" mnemonic="woof"/>
+#   <instruction length="2" type="ca" mask="0xfc63"
+#       value="0x9c41" mnemonic="c.woof"/>
 # </instructions>
 #
 # This script supports fetching the XML file from the remote target.
@@ -38,6 +25,7 @@ from os.path import expanduser
 # The default remote annex is 'insn.xml', but it can be changed using:
 #
 # set custom-instruction-filename remote:ANNEX
+
 
 ####################################################################
 #
@@ -164,9 +152,8 @@ is equivalent to 'remote:insn.xml'."""
                 while True:
                     # Fetch the next part of the XML document.
                     str = conn.send_remote_packet(
-                        "qXfer:features:read:%s:%d,%d"
-                        % (filename, start_pos, fetch_len)
-                    )
+                        "qXfer:features:read:%s:%d,%d" % (
+                            filename, start_pos, fetch_len))
                     # Update the start for when we try to get the next bit.
                     start_pos += fetch_len
                     # The first character is either 'l' (last) or 'm'
@@ -182,7 +169,8 @@ is equivalent to 'remote:insn.xml'."""
                     # If this is the last part, then we are now done.
                     if c == "l":
                         break
-                tree = ElementTree.ElementTree(ElementTree.fromstring(xml_string))
+                tree = ElementTree.ElementTree(
+                    ElementTree.fromstring(xml_string))
             except:
                 return None
         else:
@@ -512,10 +500,10 @@ class J_Insn(Insn):
         opcode = hex(int(raw_bits[6::-1], 2))
         rd = int(raw_bits[11:6:-1], 2)
         imm = (int(raw_bits[19:11:-1], 2) << 12) \
-            + (int(raw_bits[20], 2) << 11) \
-            + (int(raw_bits[30:20:-1], 2) << 1) \
-            + (int(raw_bits[31], 2) << 20)
-        
+            | (int(raw_bits[20], 2) << 11) \
+            | (int(raw_bits[30:20:-1], 2) << 1) \
+            | (int(raw_bits[31], 2) << 20)
+
         return self.format_string.replace('$opcode', opcode) \
             .replace('$opcode', opcode) \
             .replace('$rd', self._x_reg_names[rd]) \
@@ -581,7 +569,7 @@ class CI_Insn(Insn):
         opcode = hex(int(raw_bits[1::-1], 2))
         rd = int(raw_bits[11:6:-1], 2)
         imm = (int(raw_bits[6:1:-1], 2)) \
-            + (int(raw_bits[12], 2) << 5)
+            | (int(raw_bits[12], 2) << 5)
         funct3 = hex(int(raw_bits[:12:-1], 2))
 
         return self.format_string.replace('$opcode', opcode) \
@@ -590,7 +578,7 @@ class CI_Insn(Insn):
             .replace('$imm',
                      f'{(imm&0b0111111111111)-(imm&0b1000000000000)}') \
             .replace('$uimm', f'{imm}') \
-            .replace('$funct3', funct3) \
+            .replace('$funct3', funct3)
 
 
 class CSS_Insn(Insn):
@@ -613,20 +601,20 @@ class CSS_Insn(Insn):
 
     def gen_instr_assembly(self, byte_stream):
         raw_bits = format(byte_stream, '016b')[::-1]
-        insn = self.format_string
+
         opcode = hex(int(raw_bits[1::-1], 2))
         rd = int(raw_bits[11:6:-1], 2)
         imm = (int(raw_bits[12:8:-1], 2) << 2) \
-            + (int(raw_bits[8:6:-1], 2) << 6)
+            | (int(raw_bits[8:6:-1], 2) << 6)
         funct3 = hex(int(raw_bits[:12:-1], 2))
-        insn = insn.replace('$opcode', opcode)
-        insn = insn.replace('$rd', self._x_reg_names[rd])
-        insn = insn.replace('$rs1', self._x_reg_names[rd])
-        insn = insn.replace('$imm',
-                            f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
-        insn = insn.replace('$uimm', f'{imm}')
-        insn = insn.replace('$funct3', funct3)
-        return insn
+
+        return self.format_string.replace('$opcode', opcode) \
+            .replace('$rd', self._x_reg_names[rd]) \
+            .replace('$rs1', self._x_reg_names[rd]) \
+            .replace('$imm',
+                     f'{(imm&0b0111111111111)-(imm&0b1000000000000)}') \
+            .replace('$uimm', f'{imm}') \
+            .replace('$funct3', funct3)
 
 
 class CIW_Insn(Insn):
@@ -649,21 +637,21 @@ class CIW_Insn(Insn):
 
     def gen_instr_assembly(self, byte_stream):
         raw_bits = format(byte_stream, '016b')[::-1]
-        insn = self.format_string
+
         opcode = hex(int(raw_bits[1::-1], 2))
         rd = int(raw_bits[4:1:-1], 2)
         imm = (int(raw_bits[5], 2) << 3) \
-            + (int(raw_bits[6], 2) << 2) \
-            + (int(raw_bits[12:10:-1], 2) << 4) \
-            + (int(raw_bits[10:6:-1], 2) << 6)
+            | (int(raw_bits[6], 2) << 2) \
+            | (int(raw_bits[12:10:-1], 2) << 4) \
+            | (int(raw_bits[10:6:-1], 2) << 6)
         funct3 = hex(int(raw_bits[:12:-1], 2))
-        insn = insn.replace('$opcode', opcode)
-        insn = insn.replace('$rd', self._cx_reg_names[rd])
-        insn = insn.replace('$imm',
-                            f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
-        insn = insn.replace('$uimm', f'{imm}')
-        insn = insn.replace('$funct3', funct3)
-        return insn
+
+        return self.format_string.replace('$opcode', opcode) \
+            .replace('$rd', self._cx_reg_names[rd]) \
+            .replace('$imm',
+                     f'{(imm&0b0111111111111)-(imm&0b1000000000000)}') \
+            .replace('$uimm', f'{imm}') \
+            .replace('$funct3', funct3)
 
 
 class CL_Insn(Insn):
@@ -686,22 +674,22 @@ class CL_Insn(Insn):
 
     def gen_instr_assembly(self, byte_stream):
         raw_bits = format(byte_stream, '016b')[::-1]
-        insn = self.format_string
+
         opcode = hex(int(raw_bits[1::-1], 2))
         rd = int(raw_bits[4:1:-1], 2)
         rs1 = int(raw_bits[9:6:-1], 2)
         imm = (int(raw_bits[5], 2) << 2) \
-            + (int(raw_bits[6], 2) << 6) \
-            + (int(raw_bits[12:10:-1], 2) << 3)
+            | (int(raw_bits[6], 2) << 6) \
+            | (int(raw_bits[12:10:-1], 2) << 3)
         funct3 = hex(int(raw_bits[:12:-1], 2))
-        insn = insn.replace('$opcode', opcode)
-        insn = insn.replace('$rd', self._cx_reg_names[rd])
-        insn = insn.replace('$rs1', self._cx_reg_names[rs1])
-        insn = insn.replace('$imm',
-                            f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
-        insn = insn.replace('$uimm', f'{imm}')
-        insn = insn.replace('$funct3', funct3)
-        return insn
+
+        return self.format_string.replace('$opcode', opcode) \
+            .replace('$rd', self._cx_reg_names[rd]) \
+            .replace('$rs1', self._cx_reg_names[rs1]) \
+            .replace('$imm',
+                     f'{(imm&0b0111111111111)-(imm&0b1000000000000)}') \
+            .replace('$uimm', f'{imm}') \
+            .replace('$funct3', funct3)
 
 
 class CS_Insn(Insn):
@@ -724,23 +712,23 @@ class CS_Insn(Insn):
 
     def gen_instr_assembly(self, byte_stream):
         raw_bits = format(byte_stream, '016b')[::-1]
-        insn = self.format_string
+
         opcode = hex(int(raw_bits[1::-1], 2))
         rd = int(raw_bits[4:1:-1], 2)
         rs2 = int(raw_bits[9:6:-1], 2)
         imm = (int(raw_bits[5], 2) << 2) \
-            + (int(raw_bits[6], 2) << 6) \
-            + (int(raw_bits[12:10:-1], 2) << 3)
+            | (int(raw_bits[6], 2) << 6) \
+            | (int(raw_bits[12:10:-1], 2) << 3)
         funct3 = hex(int(raw_bits[:12:-1], 2))
-        insn = insn.replace('$opcode', opcode)
-        insn = insn.replace('$rd', self._cx_reg_names[rd])
-        insn = insn.replace('$rs1', self._cx_reg_names[rd])
-        insn = insn.replace('$rs2', self._cx_reg_names[rs2])
-        insn = insn.replace('$imm',
-                            f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
-        insn = insn.replace('$uimm', f'{imm}')
-        insn = insn.replace('$funct3', funct3)
-        return insn
+
+        return self.format_string.replace('$opcode', opcode) \
+            .replace('$rd', self._cx_reg_names[rd]) \
+            .replace('$rs1', self._cx_reg_names[rd]) \
+            .replace('$rs2', self._cx_reg_names[rs2]) \
+            .replace('$imm',
+                     f'{(imm&0b0111111111111)-(imm&0b1000000000000)}') \
+            .replace('$uimm', f'{imm}') \
+            .replace('$funct3', funct3)
 
 
 class CB_Insn(Insn):
@@ -763,20 +751,20 @@ class CB_Insn(Insn):
 
     def gen_instr_assembly(self, byte_stream):
         raw_bits = format(byte_stream, '016b')[::-1]
-        insn = self.format_string
+
         opcode = hex(int(raw_bits[1::-1], 2))
         rs1 = int(raw_bits[9:6:-1], 2)
         imm = (int(raw_bits[2], 2) << 5) \
-            + (int(raw_bits[6:2:-1], 2) << 1) \
-            + (int(raw_bits[12:9:-1], 2) << 6)
+            | (int(raw_bits[6:2:-1], 2) << 1) \
+            | (int(raw_bits[12:9:-1], 2) << 6)
         funct3 = hex(int(raw_bits[:12:-1], 2))
-        insn = insn.replace('$opcode', opcode)
-        insn = insn.replace('$rs1', self._cx_reg_names[rs1])
-        insn = insn.replace('$imm',
-                            f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
-        insn = insn.replace('$uimm', f'{imm}')
-        insn = insn.replace('$funct3', funct3)
-        return insn
+
+        return self.format_string.replace('$opcode', opcode) \
+            .replace('$rs1', self._cx_reg_names[rs1]) \
+            .replace('$imm',
+                     f'{(imm&0b0111111111111)-(imm&0b1000000000000)}') \
+            .replace('$uimm', f'{imm}') \
+            .replace('$funct3', funct3)
 
 
 class CJ_Insn(Insn):
@@ -799,18 +787,18 @@ class CJ_Insn(Insn):
 
     def gen_instr_assembly(self, byte_stream):
         raw_bits = format(byte_stream, '016b')[::-1]
-        insn = self.format_string
+
         opcode = hex(int(raw_bits[1::-1], 2))
         imm = (int(raw_bits[2], 2) << 5) \
-            + (int(raw_bits[6:2:-1], 2) << 1) \
-            + (int(raw_bits[12:6:-1], 2) << 6)
+            | (int(raw_bits[6:2:-1], 2) << 1) \
+            | (int(raw_bits[12:6:-1], 2) << 6)
         funct3 = hex(int(raw_bits[:12:-1], 2))
-        insn = insn.replace('$opcode', opcode)
-        insn = insn.replace('$imm',
-                            f'{(imm&0b0111111111111)-(imm&0b1000000000000)}')
-        insn = insn.replace('$uimm', f'{imm}')
-        insn = insn.replace('$funct3', funct3)
-        return insn
+
+        return self.format_string.replace('$opcode', opcode) \
+            .replace('$imm',
+                     f'{(imm&0b0111111111111)-(imm&0b1000000000000)}') \
+            .replace('$uimm', f'{imm}') \
+            .replace('$funct3', funct3)
 
 ####################################################################
 #
@@ -827,7 +815,10 @@ custom_instruction_path = RISCVDisassemblerFilename()
 
 
 class CustomInstructionHandler:
+    """Custom instruction handler class. Contains """
     def __init__(self):
+        """Pull instruction specifications from XML file, create a dictionary
+        with unique identifiers for each instruction"""
         self._root = custom_instruction_path.fetch_xml()
         self._insns = self.create_insns(self._root)
 
@@ -874,6 +865,8 @@ class CustomInstructionHandler:
         return CJ_Insn(elem)
 
     def create_insns(self, root):
+        """Take an XML file root, generate disctionary of instruction
+        objects"""
         masks = []
         gen_insn = {
             "R": self.gen_R_insn,
@@ -903,17 +896,23 @@ class CustomInstructionHandler:
         return masks
 
     def compare_with_insns(self, byte, len):
+        """Compare bytes with all instructions in turn. Return the first (and
+        hopefully only) matching instruction object"""
         for insn in self._insns:
             if(self.compare_with_insn(byte, insn, len)):
                 return insn
         return None
 
     def compare_with_insn(self, byte, insn, len):
+        """Compare bytes with a specific instruction object. If successful, return
+        the relevant instruction object"""
         if(len != insn.len):
             return False
         return (insn.insn == (byte & insn.mask))
 
     def disassemble(self, insn, len, info):
+        """Disassemble given bytes. Return a string with the relevant assemble, or
+        None if no match"""
         insn_type = self.compare_with_insns(insn, len)
         if(insn_type is not None):
             return insn_type.gen_instr_assembly(insn)
