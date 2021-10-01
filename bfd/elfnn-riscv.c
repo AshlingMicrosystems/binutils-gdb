@@ -4710,12 +4710,21 @@ _bfd_riscv_relax_section (bfd *abfd, asection *sec,
       || sec->reloc_count == 0
       || (info->disable_target_specific_optimizations
 	  && info->relax_pass < 2)
-      || (htab->restart_relax
-	  && info->relax_pass == 3)
       /* The exp_seg_relro_adjust is enum phase_enum (0x4),
 	 and defined in ld/ldexp.h.  */
       || *(htab->data_segment_phase) == 4)
     return true;
+
+  if (htab->restart_relax && info->relax_pass == 3)
+    {
+      /* We are restarting the entire process of mapping segments (including
+         relaxation passes) again. This process would usually include a sanity
+         check that addresses lie within their region, however in this case we
+         are not yet done with relaxation and are delaying relaxation of
+         alignment directives. As such we should also delay this check.  */
+      info->delay_region_check = true;
+      return true;
+    }
 
   riscv_init_pcgp_relocs (&pcgp_relocs);
 

@@ -1,3 +1,8 @@
+2021-10-01  Lewis Revill  <lewis.revill@embecosm.com>
+
+	* ldlang.c (lang_relax_sections): Account for delay_region_check
+	during final sizing of sections.
+
 2021-07-18  Nick Clifton  <nickc@redhat.com>
 
 	* 2.37 release.

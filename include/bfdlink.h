@@ -629,6 +629,12 @@ struct bfd_link_info
      relaxation returning true in *AGAIN.  */
   int relax_trip;
 
+  /* Whether to check that addresses fit within regions at the end of
+     the lang_relax_sections pass. Set to TRUE by bfd_relax_section if
+     section sizes are not necessarily final at the end of this
+     particular pass through lang_relax_sections.  */
+  bool delay_region_check;
+
   /* > 0 to treat protected data defined in the shared library as
      reference external.  0 to treat it as internal.  -1 to let
      backend to decide.  */

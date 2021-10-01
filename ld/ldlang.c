@@ -7667,6 +7667,8 @@ lang_find_relro_sections (void)
 void
 lang_relax_sections (bool need_layout)
 {
+  link_info.delay_region_check = false;
+
   if (RELAXATION_ENABLED)
     {
       /* We may need more than one relaxation pass.  */
@@ -7714,7 +7716,7 @@ lang_relax_sections (bool need_layout)
       /* Final extra sizing to report errors.  */
       lang_do_assignments (lang_assigning_phase_enum);
       lang_reset_memory_regions ();
-      lang_size_sections (NULL, true);
+      lang_size_sections (NULL, !link_info.delay_region_check);
     }
 }
 

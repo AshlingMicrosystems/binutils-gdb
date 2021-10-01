@@ -1,3 +1,8 @@
+2021-10-01  Lewis Revill  <lewis.revill@embecosm.com>
+
+	* elfnn-riscv.c (_bfd_riscv_relax_section): Set flag to delay
+	region check when restarting relaxation.
+
 2021-07-18  Nick Clifton  <nickc@redhat.com>
 
 	* 2.37 release.
