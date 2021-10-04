@@ -4,28 +4,6 @@ from gdb.disassembler import Disassembler
 import xml.etree.ElementTree as ElementTree
 from os.path import expanduser
 
-# Here's a second XML file:
-#
-# <instructions>
-#   <instruction length="4" type="r" mask="0xfe00707f"
-#       value="0x0000000b" mnemonic="woof"/>
-#   <instruction length="2" type="ca" mask="0xfc63"
-#       value="0x9c41" mnemonic="c.woof"/>
-# </instructions>
-#
-# This script supports fetching the XML file from the remote target.
-# This is done using the packet:
-#
-# qXfer:features:read:annex:start,length
-#
-# Which is the same packet as is used for reading the target XML
-# description.  The only difference will be in the name of the annex
-# which is passed.
-#
-# The default remote annex is 'insn.xml', but it can be changed using:
-#
-# set custom-instruction-filename remote:ANNEX
-
 
 ####################################################################
 #
@@ -405,7 +383,6 @@ class S_Insn(Insn):
             .replace('$uimm', f'{imm}')
 
 
-# FIXME: Decoding B instructions currently seems to be broken
 class B_Insn(Insn):
     """B-type instruction. Specifies 3 bit function code.
     format:
@@ -800,16 +777,7 @@ class CJ_Insn(Insn):
             .replace('$uimm', f'{imm}') \
             .replace('$funct3', funct3)
 
-####################################################################
-#
-# The following is a temporary place holder while the real
-# disassembler is developed.  This reads an XML file, but the format
-# is not very good, and it doesn't allow for all of the fancy format
-# strings that the real disassembler is going to support.
-#
 
-
-# FIXME: Should this be here?
 custom_instruction_path = RISCVDisassemblerFilename()
 
 
