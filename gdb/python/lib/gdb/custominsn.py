@@ -2,8 +2,6 @@ import gdb
 import gdb.disassembler
 from gdb.disassembler import Disassembler
 import xml.etree.ElementTree as ElementTree
-from os.path import expanduser
-
 
 ####################################################################
 #
@@ -79,8 +77,10 @@ setting should be set to the name of the XML file with the prefix
 be 'remote:foo.xml'.
 
 As a special case, if this setting is set to just 'remote:' then this
-is equivalent to 'remote:insn.xml'."""
+is equivalent to 'remote:insn.xml'.
 
+Finally, setting this to the empty string will mean GDB does not try
+to load any custom instruction description."""
     def __init__(self):
         """Constructor."""
         self.set_doc = "Set the path to the XML file containing the custom \
@@ -89,11 +89,10 @@ is equivalent to 'remote:insn.xml'."""
             instruction descriptions."
 
         parent = super(RISCVDisassemblerFilename, self)
-        parent.__init__(
-            "custom-instruction-filename", gdb.COMMAND_NONE, gdb.PARAM_FILENAME
-        )
-        homedir = expanduser("~")
-        self.value = "%s/tmp/simple-insn.xml" % homedir
+        parent.__init__("custom-instruction-filename",
+                        gdb.COMMAND_NONE,
+                        gdb.PARAM_FILENAME)
+        self.value = ""
 
     def get_show_string(self, svalue):
         if svalue.startswith("remote:"):
@@ -152,7 +151,14 @@ is equivalent to 'remote:insn.xml'."""
             except:
                 return None
         else:
-            tree = ElementTree.parse(self.value)
+            if self.value != "":
+                try:
+                    tree = ElementTree.parse(self.value)
+                except Exception as e:
+                    print("Error loading custom-instruction-filename: %s" % e)
+                    return None
+            else:
+                return None
         return tree.getroot()
 
 
@@ -788,7 +794,10 @@ class CustomInstructionHandler:
         """Pull instruction specifications from XML file, create a dictionary
         with unique identifiers for each instruction"""
         self._root = custom_instruction_path.fetch_xml()
-        self._insns = self.create_insns(self._root)
+        if self._root is not None:
+            self._insns = self.create_insns(self._root)
+        else:
+            self._insns = []
 
     def gen_R_insn(self, elem):
         return R_Insn(elem)

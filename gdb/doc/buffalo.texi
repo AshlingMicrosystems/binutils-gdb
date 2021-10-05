@@ -76,7 +76,10 @@ from the remote target.  To find which name should be passed to the
 remote target, consult the documentation for the remote target.
 
 As a special case, if @var{path} is just @code{remote:} then this is
-the same as passing @code{remote:insn.xml}
+the same as passing @code{remote:insn.xml}.
+
+Finally, if this setting is set to the empty string then @value{GDBN}
+will not try to load any custom instruction XML file.
 @end table
 
 @anchor{custom_insn_xml_format}
