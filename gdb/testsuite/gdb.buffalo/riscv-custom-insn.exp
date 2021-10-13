@@ -1,0 +1,33 @@
+#  For the Buffalo project.
+
+if {![istarget "riscv*-*-*"]} {
+    verbose "Skipping ${gdb_test_file_name}."
+    return
+}
+
+standard_testfile
+
+if { [prepare_for_testing "failed to prepare" ${testfile} ${srcfile} \
+	  {debug quiet}] } {
+    unsupported "failed to compile"
+    return -1
+}
+
+# Load the custom instruction support.
+gdb_test_no_output "python import gdb.custominsn"
+
+# Copy the XML file to the test machine, and setup GDB to use it.
+set xmlfile [gdb_remote_download host ${srcdir}/${subdir}/${testfile}.xml]
+gdb_test_no_output "set custom-instruction-filename ${xmlfile}" \
+    "arrange to use the custom instruction xml file"
+
+# Now search the source file to find all of the tests.
+set ifd [open "$srcdir/$subdir/${testfile}.c" r]
+while {[gets $ifd line] >= 0} {
+    if {[regexp {TEST \((L[0-9]+), "[^"]+", "([^"]+)"\)} $line full_match label result]} {
+	gdb_test "x/1i ${label}" "\\s+${hex} <\[^>\]+>:\\s+${result}"
+    } elseif {[regexp {/\* LABEL\s*=\s*"([^"]+)"\s*,\s*INSN\s*=\s*"([^"]+)"\s+\*/} $line full_match label result]} {
+	gdb_test "x/1i ${label}" "\\s+${hex} <\[^>\]+>:\\s+${result}"
+    }
+}
+close $ifd
