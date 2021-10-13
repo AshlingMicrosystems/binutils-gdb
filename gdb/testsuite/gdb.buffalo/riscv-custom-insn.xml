@@ -1,0 +1,23 @@
+<!-- This is part of the Buffalo project. -->
+
+<instructions version="1.0">
+  <instruction type="R" opcode="0x63" funct3="0x2" funct7="0x5" str="add_x $rd, $rs1, $rs2"/>
+  <instruction type="I" opcode="0x7b" funct3="0x1" str="addi_x $rd, $rs1, $imm"/>
+  <instruction type="S" opcode="0x67" funct3="0x5" str="sw_x $rs2, $imm($rs1)"/>
+  <instruction type="I" opcode="0x5b" funct3="0x5" str="lw_x $rd, $imm($rs1)"/>
+  <instruction type="J" opcode="0x73" str="jal_x $rd, $dest"/>
+  <instruction type="U" opcode="0x5b" str="lui_x $rd, $imm"/>
+  <instruction type="B" opcode="0x0f" funct3="0x5" str="beq_x $rs1, $rs2, $dest"/>
+
+  <!-- There's not many places for custom instructions in the
+       compressed instruction space, so these just replace existing
+       instructions -->
+  <instruction type="CR" opcode="0x2" funct4="0x9" str="c.add_x $rd, $rs2"/>
+  <instruction type="CI" opcode="0x1" funct3="0x0" str="c.addi_x $rd, $uimm"/>
+  <instruction type="CSS" opcode="0x2" funct3="0x6" str="c.swsp_x $rd, $imm"/>
+  <instruction type="CIW" opcode="0x0" funct3="0x0" str="c.addi4spn_x $rd, $imm"/>
+  <instruction type="CL" opcode="0x0" funct3="0x6" str="c.lw_x $rd, $rs1 $imm"/>
+  <instruction type="CS" opcode="0x1" funct3="0x4" str="c.st_x $rs1, $imm($rs2)"/>
+  <instruction type="CB" opcode="0x1" funct3="0x6" str="c.beqz_x $rs1, $dest"/>
+  <instruction type="CJ" opcode="0x1" funct3="0x5" str="c.j_x $dest"/>
+</instructions>
