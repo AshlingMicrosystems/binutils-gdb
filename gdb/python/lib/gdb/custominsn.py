@@ -187,7 +187,28 @@ class Insn:
         self._cx_reg_names = ["fp", "s1", "a0", "a1", "a2", "a3",
                               "a4", "a5"]
 
+    def expand_format_string(self, fields, info):
+        """Return a string, the expanded version of self.format_string, but
+        with the '$field's replaced using FIELDS.  FIELDS is a
+        dictionary of field names to values.  The field names in
+        FIELDS are as they are found in format_string, but without the
+        '$', e.g. a we might habve keys 'rs1', 'imm', etc.
+
+        INFO is the DisassembleInfo from GDB."""
+
+        res = self.format_string
+        if 'imm' in fields and 'dest' not in fields:
+            fields['dest'] \
+                = gdb.disassembler.format_address(info.architecture,
+                                                  (info.address + fields['imm']))
+        for k in fields.keys():
+            f = '$' + k
+            v = fields[k]
+            res = res.replace(f, str(v))
+        return res
+
     def gen_opfunc3funct7_instr(self):
+
         """Instruction specific identifier, func3 and funct7 specified.
         Currently only used by R-type instructions"""
         opcode = self.opcode
@@ -298,22 +319,18 @@ class R_Insn(Insn):
     def gen_insn_mask(self):
         return self.gen_opfunc3funct7_mask()
 
-    def gen_instr_assembly(self, byte_stream):
+    def gen_instr_assembly(self, byte_stream, info):
         raw_bits = format(byte_stream, '032b')[::-1]
 
-        opcode = hex(int(raw_bits[6::-1], 2))
+        fields = {}
         rd = int(raw_bits[11:6:-1], 2)
-        funct3 = hex(int(raw_bits[14:11:-1], 2))
+        fields['rd'] = self._x_reg_names[rd]
         rs1 = int(raw_bits[19:14:-1], 2)
+        fields['rs1'] = self._x_reg_names[rs1]
         rs2 = int(raw_bits[24:19:-1], 2)
-        funct7 = hex(int(raw_bits[:24:-1], 2))
+        fields['rs2'] = self._x_reg_names[rs2]
 
-        return self.format_string.replace('$opcode', opcode) \
-            .replace('$rd', self._x_reg_names[rd]) \
-            .replace('$funct3', funct3) \
-            .replace('$rs1', self._x_reg_names[rs1]) \
-            .replace('$rs2', self._x_reg_names[rs2]) \
-            .replace('$funct7', funct7)
+        return self.expand_format_string(fields, info)
 
 
 class I_Insn(Insn):
@@ -334,22 +351,19 @@ class I_Insn(Insn):
     def gen_insn_mask(self):
         return self.gen_opfunc3_mask()
 
-    def gen_instr_assembly(self, byte_stream):
+    def gen_instr_assembly(self, byte_stream, info):
         raw_bits = format(byte_stream, '032b')[::-1]
 
-        opcode = hex(int(raw_bits[6::-1], 2))
+        fields = {}
         rd = int(raw_bits[11:6:-1], 2)
-        funct3 = hex(int(raw_bits[14:11:-1], 2))
+        fields['rd'] = self._x_reg_names[rd]
         rs1 = int(raw_bits[19:14:-1], 2)
-        imm = int(raw_bits[:19:-1], 2)
+        fields['rs1'] = self._x_reg_names[rs1]
+        uimm = int(raw_bits[:19:-1], 2)
+        fields['uimm'] = uimm
+        fields['imm'] = (uimm & 0b0111111111111) - (uimm & 0b1000000000000)
 
-        return self.format_string.replace('$opcode', opcode) \
-            .replace('$rd', self._x_reg_names[rd]) \
-            .replace('$funct3', funct3) \
-            .replace('$rs1', self._x_reg_names[rs1]) \
-            .replace('$imm',
-                     f'{(imm&0b011111111111) -(imm&0b100000000000)}') \
-            .replace('$uimm', f'{imm}')
+        return self.expand_format_string(fields, info)
 
 
 class S_Insn(Insn):
@@ -370,23 +384,20 @@ class S_Insn(Insn):
     def gen_insn_mask(self):
         return self.gen_opfunc3_mask()
 
-    def gen_instr_assembly(self, byte_stream):
+    def gen_instr_assembly(self, byte_stream, info):
         raw_bits = format(byte_stream, '032b')[::-1]
 
-        opcode = hex(int(raw_bits[6::-1], 2))
-        funct3 = hex(int(raw_bits[14:11:-1], 2))
+        fields = {}
         rs1 = int(raw_bits[19:14:-1], 2)
+        fields['rs1'] = self._x_reg_names[rs1]
         rs2 = int(raw_bits[24:19:-1], 2)
-        imm = (int(raw_bits[11:6:-1], 2)) \
-            | (int(raw_bits[:24:-1], 2) << 5)
+        fields['rs2'] = self._x_reg_names[rs2]
+        uimm = (int(raw_bits[11:6:-1], 2)) \
+             | (int(raw_bits[:24:-1], 2) << 5)
+        fields['uimm'] = uimm
+        fields['imm'] = (uimm & 0b0111111111111) - (uimm & 0b1000000000000)
 
-        return self.format_string.replace('$opcode', opcode) \
-            .replace('$funct3', funct3) \
-            .replace('$rs1', self._x_reg_names[rs1]) \
-            .replace('$rs2', self._x_reg_names[rs2]) \
-            .replace('$imm',
-                     f'{(imm&0b011111111111)-(imm&0b100000000000)}') \
-            .replace('$uimm', f'{imm}')
+        return self.expand_format_string(fields, info)
 
 
 class B_Insn(Insn):
@@ -407,25 +418,22 @@ class B_Insn(Insn):
     def gen_insn_mask(self):
         return self.gen_opfunc3_mask()
 
-    def gen_instr_assembly(self, byte_stream):
+    def gen_instr_assembly(self, byte_stream, info):
         raw_bits = format(byte_stream, '032b')[::-1]
 
-        opcode = hex(int(raw_bits[6::-1], 2))
-        funct3 = hex(int(raw_bits[14:11:-1], 2))
+        fields = {}
         rs1 = int(raw_bits[19:14:-1], 2)
+        fields['rs1'] = self._x_reg_names[rs1]
         rs2 = int(raw_bits[24:19:-1], 2)
-        imm = (int(raw_bits[11:7:-1], 2) << 1) \
-            | (int(raw_bits[30:24:-1], 2) << 5) \
-            | (int(raw_bits[7], 2) << 11) \
-            | (int(raw_bits[31], 2) << 12)
+        fields['rs2'] = self._x_reg_names[rs2]
+        uimm = (int(raw_bits[11:7:-1], 2) << 1) \
+             | (int(raw_bits[30:24:-1], 2) << 5) \
+             | (int(raw_bits[7], 2) << 11) \
+             | (int(raw_bits[31], 2) << 12)
+        fields['uimm'] = uimm
+        fields['imm'] = (uimm & 0b0111111111111) - (uimm & 0b1000000000000)
 
-        return self.format_string.replace('$opcode', opcode) \
-            .replace('$funct3', funct3) \
-            .replace('$rs1', self._x_reg_names[rs1]) \
-            .replace('$rs2', self._x_reg_names[rs2]) \
-            .replace('$imm',
-                     f'{(imm&0b0111111111111)-(imm&0b1000000000000)}') \
-            .replace('$uimm', f'{imm}')
+        return self.expand_format_string(fields, info)
 
 
 class U_Insn(Insn):
@@ -445,19 +453,17 @@ class U_Insn(Insn):
     def gen_insn_mask(self):
         return self.gen_op_mask()
 
-    def gen_instr_assembly(self, byte_stream):
+    def gen_instr_assembly(self, byte_stream, info):
         raw_bits = format(byte_stream, '032b')[::-1]
 
-        opcode = hex(int(raw_bits[6::-1], 2))
+        fields = {}
         rd = int(raw_bits[11:6:-1], 2)
-        imm = (int(raw_bits[:11:-1], 2))
+        fields['rd'] = self._x_reg_names[rd]
+        uimm = (int(raw_bits[:11:-1], 2))
+        fields['uimm'] = uimm
+        fields['imm'] = (uimm & 0b0111111111111) - (uimm & 0b1000000000000)
 
-        return self.format_string.replace('$opcode', opcode) \
-            .replace('$opcode', opcode) \
-            .replace('$rd', self._x_reg_names[rd]) \
-            .replace('$imm',
-                     f'{(imm&0b0111111111111)-(imm&0b1000000000000)}') \
-            .replace('$uimm', f'{imm}')
+        return self.expand_format_string(fields, info)
 
 
 class J_Insn(Insn):
@@ -477,22 +483,20 @@ class J_Insn(Insn):
     def gen_insn_mask(self):
         return self.gen_op_mask()
 
-    def gen_instr_assembly(self, byte_stream):
+    def gen_instr_assembly(self, byte_stream, info):
         raw_bits = format(byte_stream, '032b')[::-1]
 
-        opcode = hex(int(raw_bits[6::-1], 2))
+        fields = {}
         rd = int(raw_bits[11:6:-1], 2)
-        imm = (int(raw_bits[19:11:-1], 2) << 12) \
-            | (int(raw_bits[20], 2) << 11) \
-            | (int(raw_bits[30:20:-1], 2) << 1) \
-            | (int(raw_bits[31], 2) << 20)
+        fields['rd'] = self._x_reg_names[rd]
+        uimm = (int(raw_bits[19:11:-1], 2) << 12) \
+             | (int(raw_bits[20], 2) << 11) \
+             | (int(raw_bits[30:20:-1], 2) << 1) \
+             | (int(raw_bits[31], 2) << 20)
+        fields['uimm'] = uimm
+        fields['imm'] = (uimm & 0b0111111111111) - (uimm & 0b1000000000000)
 
-        return self.format_string.replace('$opcode', opcode) \
-            .replace('$opcode', opcode) \
-            .replace('$rd', self._x_reg_names[rd]) \
-            .replace('$imm',
-                     f'{(imm&0b0111111111111)-(imm&0b1000000000000)}') \
-            .replace('$uimm', f'{imm}')
+        return self.expand_format_string(fields, info)
 
 
 class CR_Insn(Insn):
@@ -513,19 +517,17 @@ class CR_Insn(Insn):
     def gen_insn_mask(self):
         return self.gen_c_opfunc4_mask()
 
-    def gen_instr_assembly(self, byte_stream):
+    def gen_instr_assembly(self, byte_stream, info):
         raw_bits = format(byte_stream, '016b')[::-1]
 
-        opcode = hex(int(raw_bits[1::-1], 2))
+        fields = {}
         rs2 = int(raw_bits[6:1:-1], 2)
+        fields['rs2'] = self._x_reg_names[rs2]
         rds1 = int(raw_bits[11:6:-1], 2)
-        funct4 = hex(int(raw_bits[:11:-1], 2))
+        fields['rs1'] = self._x_reg_names[rds1]
+        fields['rd'] = self._x_reg_names[rds1]
 
-        return self.format_string.replace('$opcode', opcode) \
-            .replace('$rd', self._x_reg_names[rds1]) \
-            .replace('$rs1', self._x_reg_names[rds1]) \
-            .replace('$rs2', self._x_reg_names[rs2]) \
-            .replace('$funct4', funct4)
+        return self.expand_format_string(fields, info)
 
 
 class CI_Insn(Insn):
@@ -546,22 +548,19 @@ class CI_Insn(Insn):
     def gen_insn_mask(self):
         return self.gen_c_opfunc3_mask()
 
-    def gen_instr_assembly(self, byte_stream):
+    def gen_instr_assembly(self, byte_stream, info):
         raw_bits = format(byte_stream, '016b')[::-1]
 
-        opcode = hex(int(raw_bits[1::-1], 2))
+        fields = {}
         rd = int(raw_bits[11:6:-1], 2)
-        imm = (int(raw_bits[6:1:-1], 2)) \
-            | (int(raw_bits[12], 2) << 5)
-        funct3 = hex(int(raw_bits[:12:-1], 2))
+        fields['rd'] = self._x_reg_names[rd]
+        fields['rs1'] = self._x_reg_names[rd]
+        uimm = (int(raw_bits[6:1:-1], 2)) \
+             | (int(raw_bits[12], 2) << 5)
+        fields['uimm'] = uimm
+        fields['imm'] = (uimm & 0b0111111111111) - (uimm & 0b1000000000000)
 
-        return self.format_string.replace('$opcode', opcode) \
-            .replace('$rd', self._x_reg_names[rd]) \
-            .replace('$rs1', self._x_reg_names[rd]) \
-            .replace('$imm',
-                     f'{(imm&0b0111111111111)-(imm&0b1000000000000)}') \
-            .replace('$uimm', f'{imm}') \
-            .replace('$funct3', funct3)
+        return self.expand_format_string(fields, info)
 
 
 class CSS_Insn(Insn):
@@ -582,22 +581,20 @@ class CSS_Insn(Insn):
     def gen_insn_mask(self):
         return self.gen_c_opfunc3_mask()
 
-    def gen_instr_assembly(self, byte_stream):
+    def gen_instr_assembly(self, byte_stream, info):
         raw_bits = format(byte_stream, '016b')[::-1]
 
-        opcode = hex(int(raw_bits[1::-1], 2))
+        fields = {}
         rd = int(raw_bits[11:6:-1], 2)
-        imm = (int(raw_bits[12:8:-1], 2) << 2) \
-            | (int(raw_bits[8:6:-1], 2) << 6)
-        funct3 = hex(int(raw_bits[:12:-1], 2))
+        fields['rd'] = self._x_reg_names[rd]
+        fields['rs2'] = self._x_reg_names[rd]
+        fields['rs1'] = self._x_reg_names[rd]
+        uimm = (int(raw_bits[12:8:-1], 2) << 2) \
+             | (int(raw_bits[8:6:-1], 2) << 6)
+        fields['uimm'] = uimm
+        fields['imm'] = (uimm & 0b0111111111111) - (uimm & 0b1000000000000)
 
-        return self.format_string.replace('$opcode', opcode) \
-            .replace('$rd', self._x_reg_names[rd]) \
-            .replace('$rs1', self._x_reg_names[rd]) \
-            .replace('$imm',
-                     f'{(imm&0b0111111111111)-(imm&0b1000000000000)}') \
-            .replace('$uimm', f'{imm}') \
-            .replace('$funct3', funct3)
+        return self.expand_format_string(fields, info)
 
 
 class CIW_Insn(Insn):
@@ -618,23 +615,20 @@ class CIW_Insn(Insn):
     def gen_insn_mask(self):
         return self.gen_c_opfunc3_mask()
 
-    def gen_instr_assembly(self, byte_stream):
+    def gen_instr_assembly(self, byte_stream, info):
         raw_bits = format(byte_stream, '016b')[::-1]
 
-        opcode = hex(int(raw_bits[1::-1], 2))
+        fields = {}
         rd = int(raw_bits[4:1:-1], 2)
-        imm = (int(raw_bits[5], 2) << 3) \
-            | (int(raw_bits[6], 2) << 2) \
-            | (int(raw_bits[12:10:-1], 2) << 4) \
-            | (int(raw_bits[10:6:-1], 2) << 6)
-        funct3 = hex(int(raw_bits[:12:-1], 2))
+        fields['rd'] = self._cx_reg_names[rd]
+        uimm = (int(raw_bits[5], 2) << 3) \
+             | (int(raw_bits[6], 2) << 2) \
+             | (int(raw_bits[12:10:-1], 2) << 4) \
+             | (int(raw_bits[10:6:-1], 2) << 6)
+        fields['uimm'] = uimm
+        fields['imm'] = (uimm & 0b0111111111111) - (uimm & 0b1000000000000)
 
-        return self.format_string.replace('$opcode', opcode) \
-            .replace('$rd', self._cx_reg_names[rd]) \
-            .replace('$imm',
-                     f'{(imm&0b0111111111111)-(imm&0b1000000000000)}') \
-            .replace('$uimm', f'{imm}') \
-            .replace('$funct3', funct3)
+        return self.expand_format_string(fields, info)
 
 
 class CL_Insn(Insn):
@@ -655,24 +649,21 @@ class CL_Insn(Insn):
     def gen_insn_mask(self):
         return self.gen_c_opfunc3_mask()
 
-    def gen_instr_assembly(self, byte_stream):
+    def gen_instr_assembly(self, byte_stream, info):
         raw_bits = format(byte_stream, '016b')[::-1]
 
-        opcode = hex(int(raw_bits[1::-1], 2))
+        fields = {}
         rd = int(raw_bits[4:1:-1], 2)
+        fields['rd'] = self._cx_reg_names[rd]
         rs1 = int(raw_bits[9:6:-1], 2)
-        imm = (int(raw_bits[5], 2) << 2) \
-            | (int(raw_bits[6], 2) << 6) \
-            | (int(raw_bits[12:10:-1], 2) << 3)
-        funct3 = hex(int(raw_bits[:12:-1], 2))
+        fields['rs1'] = self._cx_reg_names[rs1]
+        uimm = (int(raw_bits[5], 2) << 2) \
+             | (int(raw_bits[6], 2) << 6) \
+             | (int(raw_bits[12:10:-1], 2) << 3)
+        fields['uimm'] = uimm
+        fields['imm'] = (uimm & 0b0111111111111) - (uimm & 0b1000000000000)
 
-        return self.format_string.replace('$opcode', opcode) \
-            .replace('$rd', self._cx_reg_names[rd]) \
-            .replace('$rs1', self._cx_reg_names[rs1]) \
-            .replace('$imm',
-                     f'{(imm&0b0111111111111)-(imm&0b1000000000000)}') \
-            .replace('$uimm', f'{imm}') \
-            .replace('$funct3', funct3)
+        return self.expand_format_string(fields, info)
 
 
 class CS_Insn(Insn):
@@ -693,25 +684,21 @@ class CS_Insn(Insn):
     def gen_insn_mask(self):
         return self.gen_c_opfunc3_mask()
 
-    def gen_instr_assembly(self, byte_stream):
+    def gen_instr_assembly(self, byte_stream, info):
         raw_bits = format(byte_stream, '016b')[::-1]
 
-        opcode = hex(int(raw_bits[1::-1], 2))
+        fields = {}
         rd = int(raw_bits[4:1:-1], 2)
+        fields['rd'] = self._cx_reg_names[rd]
+        fields['rs1'] = self._cx_reg_names[rd]
         rs2 = int(raw_bits[9:6:-1], 2)
-        imm = (int(raw_bits[5], 2) << 2) \
-            | (int(raw_bits[6], 2) << 6) \
-            | (int(raw_bits[12:10:-1], 2) << 3)
-        funct3 = hex(int(raw_bits[:12:-1], 2))
+        fields['rs2'] = self._cx_reg_names[rs2]
+        uimm = (int(raw_bits[6:4:-1], 2) << 0) \
+             | (int(raw_bits[12:9:-1], 2) << 2)
+        fields['uimm'] = uimm
+        fields['imm'] = (uimm & 0b0111111111111) - (uimm & 0b1000000000000)
 
-        return self.format_string.replace('$opcode', opcode) \
-            .replace('$rd', self._cx_reg_names[rd]) \
-            .replace('$rs1', self._cx_reg_names[rd]) \
-            .replace('$rs2', self._cx_reg_names[rs2]) \
-            .replace('$imm',
-                     f'{(imm&0b0111111111111)-(imm&0b1000000000000)}') \
-            .replace('$uimm', f'{imm}') \
-            .replace('$funct3', funct3)
+        return self.expand_format_string(fields, info)
 
 
 class CB_Insn(Insn):
@@ -732,22 +719,19 @@ class CB_Insn(Insn):
     def gen_insn_mask(self):
         return self.gen_c_opfunc3_mask()
 
-    def gen_instr_assembly(self, byte_stream):
+    def gen_instr_assembly(self, byte_stream, info):
         raw_bits = format(byte_stream, '016b')[::-1]
 
-        opcode = hex(int(raw_bits[1::-1], 2))
+        fields = {}
         rs1 = int(raw_bits[9:6:-1], 2)
-        imm = (int(raw_bits[2], 2) << 5) \
-            | (int(raw_bits[6:2:-1], 2) << 1) \
-            | (int(raw_bits[12:9:-1], 2) << 6)
-        funct3 = hex(int(raw_bits[:12:-1], 2))
+        fields['rs1'] = self._cx_reg_names[rs1]
+        uimm = (int(raw_bits[2], 2) << 5) \
+             | (int(raw_bits[6:2:-1], 2) << 1) \
+             | (int(raw_bits[12:9:-1], 2) << 6)
+        fields['uimm'] = uimm
+        fields['imm'] = (uimm & 0b0111111111111) - (uimm & 0b1000000000000)
 
-        return self.format_string.replace('$opcode', opcode) \
-            .replace('$rs1', self._cx_reg_names[rs1]) \
-            .replace('$imm',
-                     f'{(imm&0b0111111111111)-(imm&0b1000000000000)}') \
-            .replace('$uimm', f'{imm}') \
-            .replace('$funct3', funct3)
+        return self.expand_format_string(fields, info)
 
 
 class CJ_Insn(Insn):
@@ -768,20 +752,17 @@ class CJ_Insn(Insn):
     def gen_insn_mask(self):
         return self.gen_c_opfunc3_mask()
 
-    def gen_instr_assembly(self, byte_stream):
+    def gen_instr_assembly(self, byte_stream, info):
         raw_bits = format(byte_stream, '016b')[::-1]
 
-        opcode = hex(int(raw_bits[1::-1], 2))
-        imm = (int(raw_bits[2], 2) << 5) \
-            | (int(raw_bits[6:2:-1], 2) << 1) \
-            | (int(raw_bits[12:6:-1], 2) << 6)
-        funct3 = hex(int(raw_bits[:12:-1], 2))
+        fields = {}
+        uimm = (int(raw_bits[2], 2) << 5) \
+             | (int(raw_bits[6:2:-1], 2) << 1) \
+             | (int(raw_bits[12:6:-1], 2) << 6)
+        fields['uimm'] = uimm
+        fields['imm'] = (uimm & 0b0111111111111) - (uimm & 0b1000000000000)
 
-        return self.format_string.replace('$opcode', opcode) \
-            .replace('$imm',
-                     f'{(imm&0b0111111111111)-(imm&0b1000000000000)}') \
-            .replace('$uimm', f'{imm}') \
-            .replace('$funct3', funct3)
+        return self.expand_format_string(fields, info)
 
 
 custom_instruction_path = RISCVDisassemblerFilename()
@@ -892,7 +873,7 @@ class CustomInstructionHandler:
         None if no match"""
         insn_type = self.compare_with_insns(insn, len)
         if(insn_type is not None):
-            return insn_type.gen_instr_assembly(insn)
+            return insn_type.gen_instr_assembly(insn, info)
         return None
 
 ####################################################################
