@@ -52,7 +52,7 @@ file is loaded.
 
 The custom instruction XML file can be loaded either from the local
 machine (on which @value{GDBN} is running), or, if @value{GDBN} is
-connected to a remote target (@pxref{Remote Debugging}) the XML file
+connected to a remote target (@pxref{Remote Debugging}), the XML file
 can be fetched from the remote target, if the remote target supports
 this feature.
 
@@ -84,7 +84,71 @@ will not try to load any custom instruction XML file.
 
 @anchor{custom_insn_xml_format}
 @subsection Custom Instruction XML File Format
-TODO, this needs to be filled in with some words.
+New instructions can be specified in an xml file as children of an
+"instructions" root. New instructions are described as "instruction" 
+elements, parameterised by attributes that describe different 
+properties of the instruction. Valid attributes are as follows:
+
+@table @samp
+@item type (required)
+specify the type of the instruction. Current valid values are: R, I,
+S, J, U, B, CR, CI, CSS, CIW, CL, CS, CB, CJ. 
+
+@item opcode (required)
+specify the opcode of the function. Requires a hex value. This is a
+7 bit value for 32 bit instructions, and a 2 bit value for 16 bit
+(compressed) instructions. 
+
+@item funct7 (optional)
+specify a 7 bit function code. Requires a hex value. Currently used
+only by R type instructions.
+
+@item funct4 (optional)
+specify a 4 bit function code. Requires a hex value. Currently used
+only by CR type instructions.
+
+@item funct3 (optional)
+specify a 3 bit function code. Requires a hex value. Currently used
+by R, I, S, B, CI, CSS, CIW, CL, CS, CB, and CJ instructions.
+
+@item str (required)
+specify the assembly string of the function. The assembly string can
+contain both fixed text (e.g. a function mneumonic) as well as certain
+variable fields (denoted with the $ symbol). Supported variable fields
+are currently:
+    @table @samp
+    @item $rd
+    destination register
+
+    @item $rs1
+    source register 1
+
+    @item $rs2
+    source register 2
+
+    @item $uimm
+    unsigned immediate
+
+    @item $imm
+    signed immediate
+
+    @item $dest
+    immediate destination, shown as a symbol
+    @end table
+
+@end table
+
+As an example, a valid xml file containing the specification of one
+new R type instruction, and one new S type instruction might look
+like:
+@smallexample
+<instructions version="1.0">
+  @w{<instruction type="R" opcode="0x63" funct3="0x2" funct7="0x5"
+ str="add_x $rd, $rs1, $rs2"/>}
+  @w{<instruction type="S" opcode="0x67" funct3="0x5" str="sw_x $rs2,
+ $imm($rs1)"/>}
+</instructions>
+@end smallexample
 
 @subsection Remote Target Support For Fetching XML Files
 To add support to a remote target for fetching the custom instruction
