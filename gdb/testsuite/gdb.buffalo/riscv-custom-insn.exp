@@ -25,9 +25,9 @@ gdb_test_no_output "set custom-instruction-filename ${xmlfile}" \
 set ifd [open "$srcdir/$subdir/${testfile}.c" r]
 while {[gets $ifd line] >= 0} {
     if {[regexp {TEST \((L[0-9]+), "[^"]+", "([^"]+)"\)} $line full_match label result]} {
-	gdb_test "x/1i ${label}" "\\s+${hex} <\[^>\]+>:\\s+${result}"
+	gdb_test "x/1i ${label}" "\\s+${hex} <\[^>\]+>:\\s+${result}" "disassemble ${label}: ${result}"
     } elseif {[regexp {/\* LABEL\s*=\s*"([^"]+)"\s*,\s*INSN\s*=\s*"([^"]+)"\s+\*/} $line full_match label result]} {
-	gdb_test "x/1i ${label}" "\\s+${hex} <\[^>\]+>:\\s+${result}"
+	gdb_test "x/1i ${label}" "\\s+${hex} <\[^>\]+>:\\s+${result}" "disassemble ${label}: ${result}"
     }
 }
 close $ifd
