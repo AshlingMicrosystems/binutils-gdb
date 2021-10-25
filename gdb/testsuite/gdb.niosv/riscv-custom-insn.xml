@@ -1,4 +1,4 @@
-<!-- This is part of the Buffalo project. -->
+<!-- This is part of the Nios V project. -->
 
 <instructions version="1.0">
   <instruction type="R" opcode="0x63" funct3="0x2" funct7="0x5" str="add_x $rd, $rs1, $rs2"/>
