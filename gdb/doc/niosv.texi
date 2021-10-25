@@ -1,4 +1,4 @@
-@c Documentation for the NIOS-V extensions.
+@c Documentation for the Nios V extensions.
 
 @node Nios V
 @chapter Nios V Specific Extensions to @value{GDBN}
