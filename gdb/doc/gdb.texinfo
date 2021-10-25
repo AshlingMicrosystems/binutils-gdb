@@ -172,7 +172,7 @@ software in general.  We will miss him.
 * Command Line Editing::        Command Line Editing
 * Using History Interactively:: Using History Interactively
 @end ifclear
-* Buffalo::                     Buffalo Specific Extensions to @value{GDBN}
+* Nios V::                      Nios V Specific Extensions to @value{GDBN}
 * In Memoriam::                 In Memoriam
 * Formatting Documentation::    How to format and print @value{GDBN} documentation
 * Installing GDB::              Installing GDB
@@ -38183,7 +38183,7 @@ things without first using the debugger to find the facts.
 @include hsuser.texi
 @end ifclear
 
-@include buffalo.texi
+@include niosv.texi
 
 @node In Memoriam
 @appendix In Memoriam

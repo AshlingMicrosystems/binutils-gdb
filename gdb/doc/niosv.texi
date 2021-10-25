@@ -1,10 +1,10 @@
-@c Documentation for the Buffalo extensions.
+@c Documentation for the NIOS-V extensions.
 
-@node Buffalo
-@chapter Buffalo Specific Extensions to @value{GDBN}
+@node Nios V
+@chapter Nios V Specific Extensions to @value{GDBN}
 
 This chapter documents the extensions that have been made to
-@value{GDBN} for the Buffalo project.
+@value{GDBN} for the Nios V project.
 
 @section Custom Instruction Disassembly
 

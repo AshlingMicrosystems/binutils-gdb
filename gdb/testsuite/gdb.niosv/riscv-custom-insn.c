@@ -1,4 +1,4 @@
-/* For the Buffalo project.  */
+/* For the Nios V project.  */
 
 #define TEST(LABEL,INSN,RESULT)			\
   do						\
