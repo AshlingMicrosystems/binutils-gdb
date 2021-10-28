@@ -9,9 +9,9 @@ This chapter documents the extensions that have been made to
 @section Custom Instruction Disassembly
 
 @value{GDBN} is able to disassemble instructions that are unique to
-the particular RISC-V target, and which are otherwise known to the
-builtin disassembler within @value{GDBN}.  To do this the instructions
-should be described within an XML file, the format of which is
+a particular RISC-V target, and which are otherwise not known to the
+builtin disassembler.  To do this the instructions
+are described within an XML file, the format of which is
 described below (@pxref{custom_insn_xml_format,,Custom Instruction XML
 File Format}).
 
@@ -24,8 +24,7 @@ execute this command within @value{GDBN}:
 (@value{GDBP}) python import gdb.custominsn
 @end smallexample
 
-After executing this command some additional settings will have been
-added to @value{GDBN}:
+After executing this command, additional settings are available in @value{GDBN}:
 
 @table @code
 
@@ -34,13 +33,12 @@ added to @value{GDBN}:
 @item set custom-instruction-display @r{[}on|off@r{]}
 @itemx show custom-instruction-display
 This setting controls whether custom instructions should be displayed
-or not.  When this setting is @code{on}, which is the default, custom
-instructions will be disassembled using the XML description file, and
-printed as part of the disassembly.  When this setting is @code{off}
-then any custom instructions will be printed as an unknown instruction
-in disassembly output, this usually means using @code{.2byte} for
-compressed instructions, and @code{.4byte} for non-compressed
-instructions.
+or not.  When this setting is @code{on}, the custom instructions will be
+disassembled using the XML description file, and printed as part of the
+disassembly.  When this setting is @code{off}, custom instructions will be
+printed as an unknown instruction in disassembly output. This usually means
+using @code{.2byte} for compressed instructions, and @code{.4byte} for
+non-compressed instructions. The default is @code{on}. 
 
 @anchor{custom_instruction_filename}
 @kindex set custom-instruction-filename
@@ -84,11 +82,11 @@ will not try to load any custom instruction XML file.
 
 @anchor{custom_insn_xml_format}
 @subsection Custom Instruction XML File Format
-New instructions can be specified in an xml file as children of an
-"instructions" root. This instructions root should have a version
+New instructions are specified in an XML file as children of an
+@code{instructions} root. This root should have a version
 number, and that number should be exactly 1.0. New instructions are 
-described as "instruction" elements, parameterised by attributes that
-describe different properties of the instruction. Valid attributes are
+described as @code{instruction} elements, parameterised by attributes that
+describe instruction properties. Valid attributes are
 as follows:
 
 @table @samp
@@ -119,7 +117,7 @@ instructions.
 
 @item str (required)
 Specify the assembly string of the function. The assembly string can
-contain both fixed text (e.g. a function mneumonic) as well as certain
+contain both fixed text (e.g. a function mnemonic) as well as certain
 variable fields (denoted with the $ symbol). Supported variable fields
 are currently:
     @table @samp
@@ -144,7 +142,7 @@ are currently:
 
 @end table
 
-As an example, a valid xml file containing the specification of one
+As an example, a valid XML file containing the specification of one
 new @samp{R} type instruction, and one new @samp{S} type instruction
 might look like:
 
@@ -175,7 +173,7 @@ the filename like this:
 @end smallexample
 
 Then @value{GDBN} will initially send this packet
-@code{qXfer:features:read:insn.xml:0,200}.  If the insn.xml file is
+@code{qXfer:features:read:insn.xml:0,200}.  If the @code{insn.xml} file is
 longer than the 200 bytes requested, @value{GDBN} will send additional
 packets to fetch the rest of the file, just as it would for reading
-the target.xml target description file.
+the @code{target.xml} target description file.
