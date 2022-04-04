@@ -25,13 +25,19 @@
 
 namespace selftests {
 
-/* Test disassembly of one instruction.  */
+/* Return a pointer to a buffer containing an instruction that can be
+   disassembled for architecture GDBARCH.  *LEN will be set to the length
+   of the returned buffer.
 
-static void
-print_one_insn_test (struct gdbarch *gdbarch)
+   If there's no known instruction to disassemble for GDBARCH (because we
+   haven't figured on out, not because no instructions exist) then nullptr
+   is returned, and *LEN is set to 0.  */
+
+static const gdb_byte *
+get_test_insn (struct gdbarch *gdbarch, size_t *len)
 {
-  size_t len = 0;
-  const gdb_byte *insn = NULL;
+  *len = 0;
+  const gdb_byte *insn = nullptr;
 
   switch (gdbarch_bfd_arch_info (gdbarch)->arch)
     {
@@ -40,34 +46,34 @@ print_one_insn_test (struct gdbarch *gdbarch)
       static const gdb_byte bfin_insn[] = {0x17, 0xe1, 0xff, 0xff};
 
       insn = bfin_insn;
-      len = sizeof (bfin_insn);
+      *len = sizeof (bfin_insn);
       break;
     case bfd_arch_arm:
       /* mov     r0, #0 */
       static const gdb_byte arm_insn[] = {0x0, 0x0, 0xa0, 0xe3};
 
       insn = arm_insn;
-      len = sizeof (arm_insn);
+      *len = sizeof (arm_insn);
       break;
     case bfd_arch_ia64:
     case bfd_arch_mep:
     case bfd_arch_mips:
     case bfd_arch_tic6x:
     case bfd_arch_xtensa:
-      return;
+      return insn;
     case bfd_arch_s390:
       /* nopr %r7 */
       static const gdb_byte s390_insn[] = {0x07, 0x07};
 
       insn = s390_insn;
-      len = sizeof (s390_insn);
+      *len = sizeof (s390_insn);
       break;
     case bfd_arch_xstormy16:
       /* nop */
       static const gdb_byte xstormy16_insn[] = {0x0, 0x0};
 
       insn = xstormy16_insn;
-      len = sizeof (xstormy16_insn);
+      *len = sizeof (xstormy16_insn);
       break;
     case bfd_arch_nios2:
     case bfd_arch_score:
@@ -78,13 +84,13 @@ print_one_insn_test (struct gdbarch *gdbarch)
       {
 	int bplen;
 	insn = gdbarch_sw_breakpoint_from_kind (gdbarch, 4, &bplen);
-	len = bplen;
+	*len = bplen;
       }
       break;
     case bfd_arch_arc:
       /* PR 21003 */
       if (gdbarch_bfd_arch_info (gdbarch)->mach == bfd_mach_arc_arc601)
-	return;
+	return insn;
       goto generic_case;
     case bfd_arch_i386:
       {
@@ -93,7 +99,7 @@ print_one_insn_test (struct gdbarch *gdbarch)
 	   opcodes rejects an attempt to disassemble for an arch with
 	   a 64-bit address size when bfd_vma is 32-bit.  */
 	if (info->bits_per_address > sizeof (bfd_vma) * CHAR_BIT)
-	  return;
+	  return insn;
       }
       /* fall through */
     default:
@@ -105,12 +111,26 @@ print_one_insn_test (struct gdbarch *gdbarch)
 	int bplen;
 
 	insn = gdbarch_sw_breakpoint_from_kind (gdbarch, kind, &bplen);
-	len = bplen;
+	*len = bplen;
 
 	break;
       }
     }
-  SELF_CHECK (len > 0);
+  SELF_CHECK (*len > 0);
+
+  return insn;
+}
+
+/* Test disassembly of one instruction.  */
+
+static void
+print_one_insn_test (struct gdbarch *gdbarch)
+{
+  size_t len;
+  const gdb_byte *insn = get_test_insn (gdbarch, &len);
+
+  if (insn == nullptr)
+    return;
 
   /* Test gdb_disassembler for a given gdbarch by reading data from a
      pre-allocated buffer.  If you want to see the disassembled
@@ -175,6 +195,24 @@ print_one_insn_test (struct gdbarch *gdbarch)
   SELF_CHECK (di.print_insn (0) == len);
 }
 
+/* Test the gdb_buffered_insn_length function.  */
+
+static void
+buffered_insn_length_test (struct gdbarch *gdbarch)
+{
+  size_t buf_len;
+  const gdb_byte *insn = get_test_insn (gdbarch, &buf_len);
+
+  if (insn == nullptr)
+    return;
+
+  CORE_ADDR insn_address = 0;
+  int calculated_len = gdb_buffered_insn_length (gdbarch, insn, buf_len,
+						 insn_address);
+
+  SELF_CHECK (calculated_len == buf_len);
+}
+
 /* Test disassembly on memory error.  */
 
 static void
@@ -235,4 +273,6 @@ _initialize_disasm_selftests ()
 					 selftests::print_one_insn_test);
   selftests::register_test_foreach_arch ("memory_error",
 					 selftests::memory_error_test);
+  selftests::register_test_foreach_arch ("buffered_insn_length",
+					 selftests::buffered_insn_length_test);
 }
