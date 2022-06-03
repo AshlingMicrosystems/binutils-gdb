@@ -1,0 +1,179 @@
+@c Documentation for the Nios V extensions.
+
+@node Nios V
+@chapter Nios V Specific Extensions to @value{GDBN}
+
+This chapter documents the extensions that have been made to
+@value{GDBN} for the Nios V project.
+
+@section Custom Instruction Disassembly
+
+@value{GDBN} is able to disassemble instructions that are unique to
+a particular RISC-V target, and which are otherwise not known to the
+builtin disassembler.  To do this the instructions
+are described within an XML file, the format of which is
+described below (@pxref{custom_insn_xml_format,,Custom Instruction XML
+File Format}).
+
+The custom instruction support is provided as a Python script.  This
+script is included in the @value{GDBN} install, but is not loaded by
+default into @value{GDBN}.  To load the custom instruction support
+execute this command within @value{GDBN}:
+
+@smallexample
+(@value{GDBP}) python import gdb.custominsn
+@end smallexample
+
+After executing this command, additional settings are available in @value{GDBN}:
+
+@table @code
+
+@kindex set custom-instruction-display
+@kindex show custom-instruction-display
+@item set custom-instruction-display @r{[}on|off@r{]}
+@itemx show custom-instruction-display
+This setting controls whether custom instructions should be displayed
+or not.  When this setting is @code{on}, the custom instructions will be
+disassembled using the XML description file, and printed as part of the
+disassembly.  When this setting is @code{off}, custom instructions will be
+printed as an unknown instruction in disassembly output. This usually means
+using @code{.2byte} for compressed instructions, and @code{.4byte} for
+non-compressed instructions. The default is @code{on}. 
+
+@anchor{custom_instruction_filename}
+@kindex set custom-instruction-filename
+@kindex show custom-instruction-filename
+@item set custom-instruction-filename @var{path}
+@itemx show custom-instruction-filename
+This setting controls the path from which the custom instruction XML
+file is loaded.
+
+The custom instruction XML file can be loaded either from the local
+machine (on which @value{GDBN} is running), or, if @value{GDBN} is
+connected to a remote target (@pxref{Remote Debugging}), the XML file
+can be fetched from the remote target, if the remote target supports
+this feature.
+
+To load the custom instruction XML file from the local machine,
+@var{path} should set to a local path, for example:
+
+@smallexample
+(@value{GDBP}) set custom-instruction-filename /tmp/filename.xml
+@end smallexample
+
+To load the custom instruction XML file from a remote target,
+@var{path} should be set to the name that the remote target expects,
+with a @code{remote:} prefix, for example:
+
+@smallexample
+(@value{GDBP}) set custom-instruction-filename remote:insn.xml
+@end smallexample
+
+This will cause @value{GDBN} to try and fetch the @code{insn.xml} file
+from the remote target.  To find which name should be passed to the
+remote target, consult the documentation for the remote target.
+
+As a special case, if @var{path} is just @code{remote:} then this is
+the same as passing @code{remote:insn.xml}.
+
+Finally, if this setting is set to the empty string then @value{GDBN}
+will not try to load any custom instruction XML file.
+@end table
+
+@anchor{custom_insn_xml_format}
+@subsection Custom Instruction XML File Format
+New instructions are specified in an XML file as children of an
+@code{instructions} root. This root should have a version
+number, and that number should be exactly 1.0. New instructions are 
+described as @code{instruction} elements, parameterised by attributes that
+describe instruction properties. Valid attributes are
+as follows:
+
+@table @samp
+@item type (required)
+Specify the type of the instruction. Current valid values are:
+@samp{R}, @samp{I}, @samp{S}, @samp{J}, @samp{U}, @samp{B}, @samp{CR},
+@samp{CI}, @samp{CSS}, @samp{CIW}, @samp{CL}, @samp{CS}, @samp{CB},
+@samp{CJ}. 
+
+@item opcode (required)
+Specify the opcode of the function. Requires a hex value. This is a
+7 bit value for 32 bit instructions, and a 2 bit value for 16 bit
+(compressed) instructions. 
+
+@item funct7 (optional)
+Specify a 7 bit function code. Requires a hex value. Currently used
+only by @samp{R} type instructions.
+
+@item funct4 (optional)
+Specify a 4 bit function code. Requires a hex value. Currently used
+only by @samp{CR} type instructions.
+
+@item funct3 (optional)
+Specify a 3 bit function code. Requires a hex value. Currently used
+by @samp{R}, @samp{I}, @samp{S}, @samp{B}, @samp{CI}, @samp{CSS},
+@samp{CIW}, @samp{CL}, @samp{CS}, @samp{CB}, and @samp{CJ}
+instructions.
+
+@item str (required)
+Specify the assembly string of the function. The assembly string can
+contain both fixed text (e.g. a function mnemonic) as well as certain
+variable fields (denoted with the $ symbol). Supported variable fields
+are currently:
+    @table @samp
+    @item $rd
+    Destination register
+
+    @item $rs1
+    Source register 1
+
+    @item $rs2
+    Source register 2
+
+    @item $uimm
+    Unsigned immediate
+
+    @item $imm
+    Signed immediate
+
+    @item $dest
+    Immediate destination, shown as a symbol
+    @end table
+
+@end table
+
+As an example, a valid XML file containing the specification of one
+new @samp{R} type instruction, and one new @samp{S} type instruction
+might look like:
+
+@smallexample
+<instructions version="1.0">
+  @w{<instruction type="R" opcode="0x63" funct3="0x2" funct7="0x5"
+ str="add_x $rd, $rs1, $rs2"/>}
+  @w{<instruction type="S" opcode="0x67" funct3="0x5" str="sw_x $rs2,
+ $imm($rs1)"/>}
+</instructions>
+@end smallexample
+
+@subsection Remote Target Support For Fetching XML Files
+To add support to a remote target for fetching the custom instruction
+XML file, the target's remote protocol support must be extended.
+
+@value{GDBN} will make use of the @code{qXfer:features:read} packet to
+fetch the custom instruction XML file (@pxref{qXfer target description
+read}) when the @var{custom-instruction-filename}
+(@pxref{custom_instruction_filename,,set custom-instruction-filename}
+has the @code{remote:} prefix.  The annex name included in the
+@code{qXref} packet will be the filename extracted from the
+@var{custom-instruction-filename}.  So, for example, if the user sets
+the filename like this:
+
+@smallexample
+(@value{GDBP}) set custom-instruction-filename remote:insn.xml
+@end smallexample
+
+Then @value{GDBN} will initially send this packet
+@code{qXfer:features:read:insn.xml:0,200}.  If the @code{insn.xml} file is
+longer than the 200 bytes requested, @value{GDBN} will send additional
+packets to fetch the rest of the file, just as it would for reading
+the @code{target.xml} target description file.
