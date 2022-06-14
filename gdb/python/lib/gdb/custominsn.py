@@ -472,10 +472,8 @@ class U_Insn(Insn):
         rd = int(raw_bits[11:6:-1], 2)
         fields['rd'] = self._x_reg_names[rd]
         uimm = (int(raw_bits[:11:-1], 2)) << 12
-        fields['uimm'] = uimm
-        mask1 = 1 << 31
-        mask2 = mask1 - 1
-        fields['imm'] = (uimm & mask2) - (uimm & mask1)
+        fields['uimm'] = uimm >> 12
+        fields['imm'] = uimm >> 12
 
         return self.expand_format_string(fields, info)
 
