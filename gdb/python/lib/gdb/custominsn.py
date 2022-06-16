@@ -198,8 +198,12 @@ class Insn:
 
         res = self.format_string
         if 'imm' in fields and 'dest' not in fields:
+            # If hex value, cast to int
+            try:
+                addr = (int(fields['imm'], 16))
+            except TypeError:
+                addr = (fields['imm'])
             # If address is negative, wrap around the memory space
-            addr = (info.address + fields['imm'])
             if addr < 0:
                 if info.architecture.name() == "riscv:rv64":
                     addr = 0xffffffffffffffff + addr
@@ -440,10 +444,10 @@ class B_Insn(Insn):
              | (int(raw_bits[30:24:-1], 2) << 5) \
              | (int(raw_bits[7], 2) << 11) \
              | (int(raw_bits[31], 2) << 12)
-        fields['uimm'] = uimm
+        fields['uimm'] = hex(info.address + uimm)
         mask1 = 1 << 12
         mask2 = mask1 - 1
-        fields['imm'] = (uimm & mask2) - (uimm & mask1)
+        fields['imm'] = hex(info.address + (uimm & mask2) - (uimm & mask1))
 
         return self.expand_format_string(fields, info)
 
@@ -497,7 +501,6 @@ class J_Insn(Insn):
 
     def gen_instr_assembly(self, byte_stream, info):
         raw_bits = format(byte_stream, '032b')[::-1]
-
         fields = {}
         rd = int(raw_bits[11:6:-1], 2)
         fields['rd'] = self._x_reg_names[rd]
@@ -505,10 +508,10 @@ class J_Insn(Insn):
              | (int(raw_bits[20], 2) << 11) \
              | (int(raw_bits[30:20:-1], 2) << 1) \
              | (int(raw_bits[31], 2) << 20)
-        fields['uimm'] = uimm
+        fields['uimm'] = hex(info.address + uimm)
         mask1 = 1 << 20
         mask2 = mask1 - 1
-        fields['imm'] = (uimm & mask2) - (uimm & mask1)
+        fields['imm'] = hex(info.address + (uimm & mask2) - (uimm & mask1))
 
         return self.expand_format_string(fields, info)
 
