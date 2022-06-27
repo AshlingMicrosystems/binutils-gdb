@@ -49,6 +49,12 @@
 
 2022-06-27  Nick Clifton  <nickc@redhat.com>
 
+	PR 29290
+	* dwarf.c (read_and_display_attr_value): Check that debug_info_p
+	is set before dereferencing it.
+
+2022-06-27  Nick Clifton  <nickc@redhat.com>
+
 	* dwarf.c (fetch_indexed_string): Do not use length of first table
 	in string section as the length of every table in the section.
 
