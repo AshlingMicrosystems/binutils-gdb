@@ -198,9 +198,20 @@ class Insn:
 
         res = self.format_string
         if 'imm' in fields and 'dest' not in fields:
+            # If hex value, cast to int
+            try:
+                addr = (int(fields['imm'], 16))
+            except TypeError:
+                addr = (fields['imm'])
+            # If address is negative, wrap around the memory space
+            if addr < 0:
+                if info.architecture.name() == "riscv:rv64":
+                    addr = 0xffffffffffffffff + addr
+                else:
+                    addr = 0xffffffff + addr
             fields['dest'] \
                 = gdb.disassembler.format_address(info.architecture,
-                                                  (info.address + fields['imm']))
+                                                  addr)
         for k in fields.keys():
             f = '$' + k
             v = fields[k]
@@ -361,7 +372,9 @@ class I_Insn(Insn):
         fields['rs1'] = self._x_reg_names[rs1]
         uimm = int(raw_bits[:19:-1], 2)
         fields['uimm'] = uimm
-        fields['imm'] = (uimm & 0b0111111111111) - (uimm & 0b1000000000000)
+        mask1 = 1 << 11
+        mask2 = mask1 - 1
+        fields['imm'] = (uimm & mask2) - (uimm & mask1)
 
         return self.expand_format_string(fields, info)
 
@@ -395,7 +408,9 @@ class S_Insn(Insn):
         uimm = (int(raw_bits[11:6:-1], 2)) \
              | (int(raw_bits[:24:-1], 2) << 5)
         fields['uimm'] = uimm
-        fields['imm'] = (uimm & 0b0111111111111) - (uimm & 0b1000000000000)
+        mask1 = 1 << 11
+        mask2 = mask1 - 1
+        fields['imm'] = (uimm & mask2) - (uimm & mask1)
 
         return self.expand_format_string(fields, info)
 
@@ -430,8 +445,10 @@ class B_Insn(Insn):
              | (int(raw_bits[30:24:-1], 2) << 5) \
              | (int(raw_bits[7], 2) << 11) \
              | (int(raw_bits[31], 2) << 12)
-        fields['uimm'] = uimm
-        fields['imm'] = (uimm & 0b0111111111111) - (uimm & 0b1000000000000)
+        fields['uimm'] = hex(info.address + uimm)
+        mask1 = 1 << 12
+        mask2 = mask1 - 1
+        fields['imm'] = hex(info.address + (uimm & mask2) - (uimm & mask1))
 
         return self.expand_format_string(fields, info)
 
@@ -459,9 +476,9 @@ class U_Insn(Insn):
         fields = {}
         rd = int(raw_bits[11:6:-1], 2)
         fields['rd'] = self._x_reg_names[rd]
-        uimm = (int(raw_bits[:11:-1], 2))
-        fields['uimm'] = uimm
-        fields['imm'] = (uimm & 0b0111111111111) - (uimm & 0b1000000000000)
+        uimm = (int(raw_bits[:11:-1], 2)) << 12
+        fields['uimm'] = uimm >> 12
+        fields['imm'] = uimm >> 12
 
         return self.expand_format_string(fields, info)
 
@@ -493,8 +510,10 @@ class J_Insn(Insn):
              | (int(raw_bits[20], 2) << 11) \
              | (int(raw_bits[30:20:-1], 2) << 1) \
              | (int(raw_bits[31], 2) << 20)
-        fields['uimm'] = uimm
-        fields['imm'] = (uimm & 0b0111111111111) - (uimm & 0b1000000000000)
+        fields['uimm'] = hex(info.address + uimm)
+        mask1 = 1 << 20
+        mask2 = mask1 - 1
+        fields['imm'] = hex(info.address + (uimm & mask2) - (uimm & mask1))
 
         return self.expand_format_string(fields, info)
 
@@ -558,7 +577,9 @@ class CI_Insn(Insn):
         uimm = (int(raw_bits[6:1:-1], 2)) \
              | (int(raw_bits[12], 2) << 5)
         fields['uimm'] = uimm
-        fields['imm'] = (uimm & 0b0111111111111) - (uimm & 0b1000000000000)
+        mask1 = 1 << 5
+        mask2 = mask1 - 1
+        fields['imm'] = (uimm & mask2) - (uimm & mask1)
 
         return self.expand_format_string(fields, info)
 
@@ -592,7 +613,9 @@ class CSS_Insn(Insn):
         uimm = (int(raw_bits[12:8:-1], 2) << 2) \
              | (int(raw_bits[8:6:-1], 2) << 6)
         fields['uimm'] = uimm
-        fields['imm'] = (uimm & 0b0111111111111) - (uimm & 0b1000000000000)
+        mask1 = 1 << 7
+        mask2 = mask1 - 1
+        fields['imm'] = (uimm & mask2) - (uimm & mask1)
 
         return self.expand_format_string(fields, info)
 
@@ -626,7 +649,9 @@ class CIW_Insn(Insn):
              | (int(raw_bits[12:10:-1], 2) << 4) \
              | (int(raw_bits[10:6:-1], 2) << 6)
         fields['uimm'] = uimm
-        fields['imm'] = (uimm & 0b0111111111111) - (uimm & 0b1000000000000)
+        mask1 = 1 << 9
+        mask2 = mask1 - 1
+        fields['imm'] = (uimm & mask2) - (uimm & mask1)
 
         return self.expand_format_string(fields, info)
 
@@ -661,7 +686,9 @@ class CL_Insn(Insn):
              | (int(raw_bits[6], 2) << 6) \
              | (int(raw_bits[12:10:-1], 2) << 3)
         fields['uimm'] = uimm
-        fields['imm'] = (uimm & 0b0111111111111) - (uimm & 0b1000000000000)
+        mask1 = 1 << 6
+        mask2 = mask1 - 1
+        fields['imm'] = (uimm & mask2) - (uimm & mask1)
 
         return self.expand_format_string(fields, info)
 
@@ -696,7 +723,9 @@ class CS_Insn(Insn):
         uimm = (int(raw_bits[6:4:-1], 2) << 0) \
              | (int(raw_bits[12:9:-1], 2) << 2)
         fields['uimm'] = uimm
-        fields['imm'] = (uimm & 0b0111111111111) - (uimm & 0b1000000000000)
+        mask1 = 1 << 4
+        mask2 = mask1 - 1
+        fields['imm'] = (uimm & mask2) - (uimm & mask1)
 
         return self.expand_format_string(fields, info)
 
@@ -729,7 +758,9 @@ class CB_Insn(Insn):
              | (int(raw_bits[6:2:-1], 2) << 1) \
              | (int(raw_bits[12:9:-1], 2) << 6)
         fields['uimm'] = uimm
-        fields['imm'] = (uimm & 0b0111111111111) - (uimm & 0b1000000000000)
+        mask1 = 1 << 8
+        mask2 = mask1 - 1
+        fields['imm'] = (uimm & mask2) - (uimm & mask1)
 
         return self.expand_format_string(fields, info)
 
@@ -760,7 +791,9 @@ class CJ_Insn(Insn):
              | (int(raw_bits[6:2:-1], 2) << 1) \
              | (int(raw_bits[12:6:-1], 2) << 6)
         fields['uimm'] = uimm
-        fields['imm'] = (uimm & 0b0111111111111) - (uimm & 0b1000000000000)
+        mask1 = 1 << 10
+        mask2 = mask1 - 1
+        fields['imm'] = (uimm & mask2) - (uimm & mask1)
 
         return self.expand_format_string(fields, info)
 
