@@ -1381,7 +1381,7 @@ warning_find_reloc (bfd *abfd, asection *sec, void *iarg)
 	  && strcmp (bfd_asymbol_name (*q->sym_ptr_ptr), info->symbol) == 0)
 	{
 	  /* We found a reloc for the symbol we are looking for.  */
-	  einfo ("%P: %C: %s%s\n", abfd, sec, q->address, _("warning: "),
+	  einfo ("%C: %s%s\n", abfd, sec, q->address, _("warning: "),
 		 info->warning);
 	  info->found = true;
 	  break;
