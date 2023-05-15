@@ -162,6 +162,7 @@ to load any custom instruction description."""
         return tree.getroot()
 
 
+
 class Insn:
     """This is the base instruction class from which all specific instructions
     inherit. Takes an XML instruction, and takes out the opcode, instruction
@@ -176,6 +177,19 @@ class Insn:
         self.funct3 = None
         self.funct4 = None
         self.funct7 = None
+        self.num_extra_att = 0
+        if 'rd' in elem.attrib:
+            self.num_extra_att += 1
+        if 'rs1' in elem.attrib:
+            self.num_extra_att += 1
+        if 'rs2' in elem.attrib:
+            self.num_extra_att += 1
+        if 'raw_imm' in elem.attrib:
+            self.num_extra_att += 1
+        if 'imm' in elem.attrib:
+            self.num_extra_att += 1
+        if 'uimm' in elem.attrib:
+            self.num_extra_att += 1  
         # mapping of integer indexes to registers
         self._x_reg_names = ["zero", "ra", "sp", "gp", "tp", "t0",
                              "t1", "t2", "fp", "s1", "a0", "a1",
@@ -319,15 +333,38 @@ class R_Insn(Insn):
         super().__init__(elem)
         self.funct3 = int(elem.attrib['funct3'], 16)
         self.funct7 = int(elem.attrib['funct7'], 16)
+        if 'rd' in elem.attrib:
+            self.rd = int(elem.attrib['rd'], 10)
+            print("Warning: Instruction specification contains rd field")
+        if 'rs1' in elem.attrib: 
+            self.rs1 = int(elem.attrib['rs1'], 10)
+            print("Warning: Instruction specification contains rs1 field")
+        if 'rs2' in elem.attrib:
+            self.rs2 = int(elem.attrib['rs2'], 10)
+            print("Warning: Instruction specification contains rs2 field")
         self.insn = self.gen_insn()
         self.mask = self.gen_insn_mask()
         self.len = 4
 
     def gen_insn(self):
-        return self.gen_opfunc3funct7_instr()
+        base = self.gen_opfunc3funct7_instr()
+        if hasattr(self, "rd"):
+            base = base | (self.rd << 7)
+        if hasattr(self, "rs1"):
+            base = base | (self.rs1 << 15)
+        if hasattr(self, "rs2"):
+            base = base | (self.rs2 << 20)
+        return base
 
     def gen_insn_mask(self):
-        return self.gen_opfunc3funct7_mask()
+        base =  self.gen_opfunc3funct7_mask()
+        if hasattr(self, "rd"):
+            base = base | (0b11111 << 7)
+        if hasattr(self, "rs1"):
+            base = base | (0b11111 << 15)
+        if hasattr(self, "rs2"):
+            base = base | (0b11111 << 20)
+        return base
 
     def gen_instr_assembly(self, byte_stream, info):
         raw_bits = format(byte_stream, '032b')[::-1]
@@ -351,15 +388,49 @@ class I_Insn(Insn):
     def __init__(self, elem):
         super().__init__(elem)
         self.funct3 = int(elem.attrib['funct3'], 16)
+        if 'rd' in elem.attrib:
+            self.rd = int(elem.attrib['rd'], 10)
+            print("Warning: Instruction specification contains rd field")
+        if 'rs1' in elem.attrib: 
+            self.rs1 = int(elem.attrib['rs1'], 10)
+            print("Warning: Instruction specification contains rs1 field")
+        if 'imm' in elem.attrib:
+            self.imm = int(elem.attrib['imm'], 16)
+            print("Warning: Instruction specification contains imm field")
+        if 'uimm' in elem.attrib:
+            self.uimm = int(elem.attrib['uimm'], 16)
+            print("Warning: Instruction specification contains uimm field")
         self.insn = self.gen_insn()
         self.mask = self.gen_insn_mask()
         self.len = 4
 
     def gen_insn(self):
-        return self.gen_opfunc3_instr()
+        base = self.gen_opfunc3_instr()
+        if hasattr(self, "rd"):
+            base = base | (self.rd << 7)
+        if hasattr(self, "rs1"):
+            base = base | (self.rs1 << 15)
+        if hasattr(self, "imm"):
+            if self.imm < 0:
+                imm = (((1<<12) - 1) - abs(self.imm) + 1)
+                base = base | (imm << 20)
+            else:
+                base = base | (self.imm << 20)
+        if hasattr(self, "uimm"):
+            base = base | (self.uimm << 20)
+        return base
 
     def gen_insn_mask(self):
-        return self.gen_opfunc3_mask()
+        base =  self.gen_opfunc3_mask()
+        if hasattr(self, "rd"):
+            base = base | (0b11111 << 7)
+        if hasattr(self, "rs1"):
+            base = base | (0b11111 << 15)
+        if hasattr(self, "imm"):
+            base = base | (0b111111111111 << 20)
+        if hasattr(self, "uimm"):
+            base = base | (0b111111111111 << 20)
+        return base
 
     def gen_instr_assembly(self, byte_stream, info):
         raw_bits = format(byte_stream, '032b')[::-1]
@@ -386,15 +457,54 @@ class S_Insn(Insn):
     def __init__(self, elem):
         super().__init__(elem)
         self.funct3 = int(elem.attrib['funct3'], 16)
+        if 'rs1' in elem.attrib:
+            self.rs1 = int(elem.attrib['rs1'], 10)
+            print("Warning: Instruction specification contains rs1 field")
+        if 'rs2' in elem.attrib: 
+            self.rs2 = int(elem.attrib['rs2'], 10)
+            print("Warning: Instruction specification contains rs2 field")
+        if 'imm' in elem.attrib:
+            self.imm = int(elem.attrib['imm'], 16)
+            print("Warning: Instruction specification contains imm field")
+        if 'uimm' in elem.attrib:
+            self.uimm = int(elem.attrib['uimm'], 16)
+            print("Warning: Instruction specification contains uimm field")
         self.insn = self.gen_insn()
         self.mask = self.gen_insn_mask()
         self.len = 4
 
     def gen_insn(self):
-        return self.gen_opfunc3_instr()
+        base = self.gen_opfunc3_instr()
+        if hasattr(self, "rs1"):
+            base = base | (self.rs1 << 15)
+        if hasattr(self, "rs2"):
+            base = base | (self.rs2 << 20)
+        if hasattr(self, "imm"):
+            if self.imm < 0:
+                imm = (((1<<12) - 1) - abs(self.imm) + 1)
+                base = base | ((0b11111 & imm) << 7)
+                base = base | (((0b111111100000 & imm) >> 5) << 25)
+            else:
+                base = base | ((0b11111 & self.imm) << 7)
+                base = base | (((0b111111100000 & self.imm) >> 5) << 25)
+        if hasattr(self, "uimm"):
+            base = base | ((0b11111 & self.uimm) << 7)
+            base = base | (((0b111111100000 & self.uimm) >> 5) << 25)
+        return base
 
     def gen_insn_mask(self):
-        return self.gen_opfunc3_mask()
+        base =  self.gen_opfunc3_mask()
+        if hasattr(self, "rs1"):
+            base = base | (0b11111 << 15)
+        if hasattr(self, "rs2"):
+            base = base | (0b11111 << 20)
+        if hasattr(self, "imm"):
+            base = base | (0b11111 << 7)
+            base = base | (0b1111111 << 25)
+        if hasattr(self, "uimm"):
+            base = base | (0b11111 << 7)
+            base = base | (0b1111111 << 25)
+        return base
 
     def gen_instr_assembly(self, byte_stream, info):
         raw_bits = format(byte_stream, '032b')[::-1]
@@ -422,15 +532,60 @@ class B_Insn(Insn):
     def __init__(self, elem):
         super().__init__(elem)
         self.funct3 = int(elem.attrib['funct3'], 16)
+        if 'rs1' in elem.attrib:
+            self.rs1 = int(elem.attrib['rs1'], 10)
+            print("Warning: Instruction specification contains rs1 field")
+        if 'rs2' in elem.attrib: 
+            self.rs2 = int(elem.attrib['rs2'], 10)
+            print("Warning: Instruction specification contains rs2 field")
+        if 'imm' in elem.attrib:
+            self.imm = int(elem.attrib['imm'], 16)
+            print("Warning: Instruction specification contains imm field")
+        if 'uimm' in elem.attrib:
+            self.uimm = int(elem.attrib['uimm'], 16)
+            print("Warning: Instruction specification contains uimm field")
         self.insn = self.gen_insn()
         self.mask = self.gen_insn_mask()
         self.len = 4
 
     def gen_insn(self):
-        return self.gen_opfunc3_instr()
+        base = self.gen_opfunc3_instr()
+        if hasattr(self, "rs1"):
+            base = base | (self.rs1 << 15)
+        if hasattr(self, "rs2"):
+            base = base | (self.rs2 << 20)
+        if hasattr(self, "imm"):
+            if self.imm < 0:
+                imm = (((1<<12) - 1) - abs(self.imm) + 1)
+                base = base | (((0b100000000000 & imm) >> 11) << 7)
+                base = base | (((0b11110 & imm) >> 1) << 7)
+                base = base | (((0b011111100000 & imm) >> 5) << 25)
+                base = base | (((0b1000000000000 & imm) >> 12) << 25)
+            else:
+                base = base | (((0b100000000000 & self.imm) >> 11) << 7)
+                base = base | (((0b11110 & self.imm) >> 1) << 7)
+                base = base | (((0b011111100000 & self.imm) >> 5) << 25)
+                base = base | (((0b1000000000000 & self.imm) >> 12) << 25)
+        if hasattr(self, "uimm"):
+            base = base | (((0b100000000000 & self.uimm) >> 11) << 7)
+            base = base | (((0b11110 & self.uimm) >> 1) << 7)
+            base = base | (((0b011111100000 & self.uimm) >> 5) << 25)
+            base = base | (((0b1000000000000 & self.uimm) >> 12) << 25)
+        return base
 
     def gen_insn_mask(self):
-        return self.gen_opfunc3_mask()
+        base =  self.gen_opfunc3_mask()
+        if hasattr(self, "rs1"):
+            base = base | (0b11111 << 15)
+        if hasattr(self, "rs2"):
+            base = base | (0b11111 << 20)
+        if hasattr(self, "imm"):
+            base = base | (0b11111 << 7)
+            base = base | (0b1111111 << 25)
+        if hasattr(self, "uimm"):
+            base = base | (0b11111 << 7)
+            base = base | (0b1111111 << 25)
+        return base
 
     def gen_instr_assembly(self, byte_stream, info):
         raw_bits = format(byte_stream, '032b')[::-1]
@@ -459,15 +614,42 @@ class U_Insn(Insn):
         | imm[31:12] | rd | opcode |"""
     def __init__(self, elem):
         super().__init__(elem)
+        if 'rd' in elem.attrib:
+            self.rd = int(elem.attrib['rd'], 10)
+            print("Warning: Instruction specification contains rs1 field")
+        if 'imm' in elem.attrib:
+            self.imm = int(elem.attrib['imm'], 16)
+            print("Warning: Instruction specification contains imm field")
+        if 'uimm' in elem.attrib:
+            self.uimm = int(elem.attrib['uimm'], 16)
+            print("Warning: Instruction specification contains uimm field")
         self.insn = self.gen_insn()
         self.mask = self.gen_insn_mask()
         self.len = 4
 
     def gen_insn(self):
-        return self.gen_op_instr()
+        base = self.gen_op_instr()
+        if hasattr(self, "rd"):
+            base = base | (self.rd << 7)
+        if hasattr(self, "imm"):
+            if self.imm < 0:
+                imm = (((1<<21) - 1) - abs(self.imm) + 1)
+                base = base | (imm << 12)
+            else:
+                base = base | (self.imm << 12)
+        if hasattr(self, "uimm"):
+            base = base | (self.uimm << 12)
+        return base
 
     def gen_insn_mask(self):
-        return self.gen_op_mask()
+        base =  self.gen_op_mask()
+        if hasattr(self, "rd"):
+            base = base | (0b11111 << 7)
+        if hasattr(self, "imm"):
+            base = base | (0b11111111111111111111 << 12)
+        if hasattr(self, "uimm"):
+            base = base | (0b11111111111111111111 << 12)
+        return base
 
     def gen_instr_assembly(self, byte_stream, info):
         raw_bits = format(byte_stream, '032b')[::-1]
@@ -489,15 +671,51 @@ class J_Insn(Insn):
         | imm[20|10:1|11|19:12] | rd | opcode |"""
     def __init__(self, elem):
         super().__init__(elem)
+        if 'rd' in elem.attrib:
+            self.rd = int(elem.attrib['rd'], 10)
+            print("Warning: Instruction specification contains rs1 field")
+        if 'imm' in elem.attrib:
+            self.imm = int(elem.attrib['imm'], 16)
+            print("Warning: Instruction specification contains imm field")
+        if 'uimm' in elem.attrib:
+            self.uimm = int(elem.attrib['uimm'], 16)
+            print("Warning: Instruction specification contains uimm field")
         self.insn = self.gen_insn()
         self.mask = self.gen_insn_mask()
         self.len = 4
 
     def gen_insn(self):
-        return self.gen_op_instr()
+        base = self.gen_op_instr()
+        if hasattr(self, "rd"):
+            base = base | (self.rd << 7)
+        if hasattr(self, "imm"):
+            if self.imm < 0:
+                imm = (((1<<21) - 1) - abs(self.imm) + 1)
+                base = base | ((0b1111111111 & imm) << 21)
+                base = base | (((0b11111111000000000000 & imm) >> 12) << 12)
+                base = base | (((0b100000000000000000000 & imm) >> 20) << 31)
+                base = base | (((0b100000000000 & imm) >> 11) << 20)
+            else:
+                base = base | ((0b1111111111 & self.imm) << 21)
+                base = base | (((0b11111111000000000000 & self.imm) >> 12) << 12)
+                base = base | (((0b100000000000000000000 & self.imm) >> 20) << 31)
+                base = base | (((0b100000000000 & self.imm) >> 11) << 20)
+        if hasattr(self, "uimm"):
+            base = base | ((0b1111111111 & self.uimm) << 21)
+            base = base | (((0b11111111000000000000 & self.uimm) >> 12) << 12)
+            base = base | (((0b100000000000000000000 & self.uimm) >> 20) << 31)
+            base = base | (((0b100000000000 & self.uimm) >> 11) << 20)
+        return base
 
     def gen_insn_mask(self):
-        return self.gen_op_mask()
+        base =  self.gen_op_mask()
+        if hasattr(self, "rd"):
+            base = base | (0b11111 << 7)
+        if hasattr(self, "imm"):
+            base = base | (0b11111111111111111111 << 12)
+        if hasattr(self, "uimm"):
+            base = base | (0b11111111111111111111 << 12)
+        return base
 
     def gen_instr_assembly(self, byte_stream, info):
         raw_bits = format(byte_stream, '032b')[::-1]
@@ -524,15 +742,38 @@ class CR_Insn(Insn):
     def __init__(self, elem):
         super().__init__(elem)
         self.funct4 = int(elem.attrib['funct4'], 16)
+        if 'rd' in elem.attrib:
+            self.rd = int(elem.attrib['rd'], 10)
+            print("Warning: Instruction specification contains rd field")
+        if 'rs1' in elem.attrib:
+            self.rs1 = int(elem.attrib['rs1'], 10)
+            print("Warning: Instruction specification contains rs1 field")
+        if 'rs2' in elem.attrib:
+            self.rs2 = int(elem.attrib['rs2'], 10)
+            print("Warning: Instruction specification contains rs2 field")
         self.insn = self.gen_insn()
         self.mask = self.gen_insn_mask()
         self.len = 2
 
     def gen_insn(self):
-        return self.gen_c_opfunc4_instr()
+        base = self.gen_c_opfunc4_instr()
+        if hasattr(self, "rd"):
+            base = base | (self.rd << 7)
+        if hasattr(self, "rs1"):
+            base = base | (self.rs1 << 7)
+        if hasattr(self, "rs2"):
+            base = base | (self.rs2 << 2)
+        return base
 
     def gen_insn_mask(self):
-        return self.gen_c_opfunc4_mask()
+        base = self.gen_c_opfunc4_mask()
+        if hasattr(self, "rd"):
+            base = base | (0b11111 << 7)
+        if hasattr(self, "rs1"):
+            base = base | (0b11111 << 7)
+        if hasattr(self, "rs2"):
+            base = base | (0b11111 << 2)
+        return base
 
     def gen_instr_assembly(self, byte_stream, info):
         raw_bits = format(byte_stream, '016b')[::-1]
@@ -555,15 +796,49 @@ class CI_Insn(Insn):
     def __init__(self, elem):
         super().__init__(elem)
         self.funct3 = int(elem.attrib['funct3'], 16)
+        if 'rd' in elem.attrib:
+            self.rd = int(elem.attrib['rd'], 10)
+            print("Warning: Instruction specification contains rd field")
+        if 'rs1' in elem.attrib:
+            self.rs1 = int(elem.attrib['rs1'], 10)
+            print("Warning: Instruction specification contains rs1 field")
+        if 'raw_imm' in elem.attrib:
+            self.imm = int(elem.attrib['raw_imm'], 16)
+            print("Warning: Instruction specification contains imm field")
+        if 'imm' in elem.attrib:
+            self.imm = int(elem.attrib['imm'], 16)
+            print("Warning: Compressed instruction will interpret immediate \
+                values literally")
+        if 'uimm' in elem.attrib:
+            self.imm = int(elem.attrib['uimm'], 16)
+            print("Warning: Compressed instruction will interpret immediate \
+                values literally")    
         self.insn = self.gen_insn()
         self.mask = self.gen_insn_mask()
         self.len = 2
 
     def gen_insn(self):
-        return self.gen_c_opfunc3_instr()
+        base = self.gen_c_opfunc3_instr()
+        if hasattr(self, "rd"):
+            base = base | (self.rd << 7)
+        if hasattr(self, "rs1"):
+            base = base | (self.rs1 << 7)
+        if hasattr(self, "imm"):
+            base = base | ((0b011111 & self.imm) << 2)
+            base = base | (((0b100000 & self.imm) >> 5) << 12)
+        return base
+    
 
     def gen_insn_mask(self):
-        return self.gen_c_opfunc3_mask()
+        base = self.gen_c_opfunc3_mask()
+        if hasattr(self, "rd"):
+            base = base | (0b11111 << 7)
+        if hasattr(self, "rs1"):
+            base = base | (0b11111 << 7)
+        if hasattr(self, "imm"):
+            base = base | (0b11111 << 2)
+            base = base | (0b100000 << 12)
+        return base 
 
     def gen_instr_assembly(self, byte_stream, info):
         raw_bits = format(byte_stream, '016b')[::-1]
@@ -590,15 +865,39 @@ class CSS_Insn(Insn):
     def __init__(self, elem):
         super().__init__(elem)
         self.funct3 = int(elem.attrib['funct3'], 16)
+        if 'rs2' in elem.attrib:
+            self.rs2 = int(elem.attrib['rs2'], 10)
+            print("Warning: Instruction specification contains rs2 field")
+        if 'raw_imm' in elem.attrib:
+            self.imm = int(elem.attrib['raw_imm'], 16)
+            print("Warning: Instruction specification contains imm field")
+        if 'imm' in elem.attrib:
+            self.imm = int(elem.attrib['imm'], 16)
+            print("Warning: Compressed instruction will interpret immediate \
+                values literally")
+        if 'uimm' in elem.attrib:
+            self.imm = int(elem.attrib['uimm'], 16)
+            print("Warning: Compressed instruction will interpret immediate \
+                values literally")    
         self.insn = self.gen_insn()
         self.mask = self.gen_insn_mask()
         self.len = 2
 
     def gen_insn(self):
-        return self.gen_c_opfunc3_instr()
+        base = self.gen_c_opfunc3_instr()
+        if hasattr(self, "rs2"):
+            base = base | (self.rs2 << 2)
+        if hasattr(self, "imm"):
+            base = base | ((0b111111 & self.imm) << 7)
+        return base
 
     def gen_insn_mask(self):
-        return self.gen_c_opfunc3_mask()
+        base = self.gen_c_opfunc3_mask()
+        if hasattr(self, "rs2"):
+            base = base | (0b11111 << 2)
+        if hasattr(self, "imm"):
+            base = base | (0b111111 << 7)
+        return base 
 
     def gen_instr_assembly(self, byte_stream, info):
         raw_bits = format(byte_stream, '016b')[::-1]
@@ -626,15 +925,39 @@ class CIW_Insn(Insn):
     def __init__(self, elem):
         super().__init__(elem)
         self.funct3 = int(elem.attrib['funct3'], 16)
+        if 'rd' in elem.attrib:
+            self.rd = int(elem.attrib['rd'], 10)
+            print("Warning: Instruction specification contains rsd field")
+        if 'raw_imm' in elem.attrib:
+            self.imm = int(elem.attrib['raw_imm'], 16)
+            print("Warning: Instruction specification contains imm field")
+        if 'imm' in elem.attrib:
+            self.imm = int(elem.attrib['imm'], 16)
+            print("Warning: Compressed instruction will interpret immediate \
+                values literally")
+        if 'uimm' in elem.attrib:
+            self.imm = int(elem.attrib['uimm'], 16)
+            print("Warning: Compressed instruction will interpret immediate \
+                values literally")    
         self.insn = self.gen_insn()
         self.mask = self.gen_insn_mask()
         self.len = 2
 
     def gen_insn(self):
-        return self.gen_c_opfunc3_instr()
+        base = self.gen_c_opfunc3_instr()
+        if hasattr(self, "rd"):
+            base = base | (self.rd << 2)
+        if hasattr(self, "imm"):
+            base = base | ((0b11111111 & self.imm) << 5)
+        return base
 
     def gen_insn_mask(self):
-        return self.gen_c_opfunc3_mask()
+        base = self.gen_c_opfunc3_mask()
+        if hasattr(self, "rd"):
+            base = base | (0b111 << 2)
+        if hasattr(self, "imm"):
+            base = base | (0b11111111 << 5)
+        return base 
 
     def gen_instr_assembly(self, byte_stream, info):
         raw_bits = format(byte_stream, '016b')[::-1]
@@ -662,15 +985,48 @@ class CL_Insn(Insn):
     def __init__(self, elem):
         super().__init__(elem)
         self.funct3 = int(elem.attrib['funct3'], 16)
+        if 'rd' in elem.attrib:
+            self.rd = int(elem.attrib['rd'], 10)
+            print("Warning: Instruction specification contains rd field")
+        if 'rs1' in elem.attrib:
+            self.rs1 = int(elem.attrib['rs1'], 10)
+            print("Warning: Instruction specification contains rs1 field")
+        if 'raw_imm' in elem.attrib:
+            self.imm = int(elem.attrib['raw_imm'], 16)
+            print("Warning: Instruction specification contains imm field")
+        if 'imm' in elem.attrib:
+            self.imm = int(elem.attrib['imm'], 16)
+            print("Warning: Compressed instruction will interpret immediate \
+                values literally")
+        if 'uimm' in elem.attrib:
+            self.imm = int(elem.attrib['uimm'], 16)
+            print("Warning: Compressed instruction will interpret immediate \
+                values literally")    
         self.insn = self.gen_insn()
         self.mask = self.gen_insn_mask()
         self.len = 2
 
     def gen_insn(self):
-        return self.gen_c_opfunc3_instr()
+        base = self.gen_c_opfunc3_instr()
+        if hasattr(self, "rd"):
+            base = base | (self.rd << 2)
+        if hasattr(self, "rs1"):
+            base = base | (self.rs1 << 7)
+        if hasattr(self, "imm"):
+            base = base | ((0b11 & self.imm) << 5)
+            base = base | (((0b11100 & self.imm) >> 2) << 10)
+        return base
 
     def gen_insn_mask(self):
-        return self.gen_c_opfunc3_mask()
+        base = self.gen_c_opfunc3_mask()
+        if hasattr(self, "rd"):
+            base = base | (0b111 << 2)
+        if hasattr(self, "rs1"):
+            base = base | (0b111 << 7)
+        if hasattr(self, "imm"):
+            base = base | (0b11 << 5)
+            base = base | (0b111 << 10)
+        return base 
 
     def gen_instr_assembly(self, byte_stream, info):
         raw_bits = format(byte_stream, '016b')[::-1]
@@ -699,15 +1055,48 @@ class CS_Insn(Insn):
     def __init__(self, elem):
         super().__init__(elem)
         self.funct3 = int(elem.attrib['funct3'], 16)
+        if 'rs1' in elem.attrib:
+            self.rs1 = int(elem.attrib['rs1'], 10)
+            print("Warning: Instruction specification contains rd field")
+        if 'rs2' in elem.attrib:
+            self.rs2 = int(elem.attrib['rs2'], 10)
+            print("Warning: Instruction specification contains rs1 field")
+        if 'raw_imm' in elem.attrib:
+            self.imm = int(elem.attrib['raw_imm'], 16)
+            print("Warning: Instruction specification contains imm field")
+        if 'imm' in elem.attrib:
+            self.imm = int(elem.attrib['imm'], 16)
+            print("Warning: Compressed instruction will interpret immediate \
+                values literally")
+        if 'uimm' in elem.attrib:
+            self.imm = int(elem.attrib['uimm'], 16)
+            print("Warning: Compressed instruction will interpret immediate \
+                values literally")    
         self.insn = self.gen_insn()
         self.mask = self.gen_insn_mask()
         self.len = 2
 
     def gen_insn(self):
-        return self.gen_c_opfunc3_instr()
+        base = self.gen_c_opfunc3_instr()
+        if hasattr(self, "rs1"):
+            base = base | (self.rs1 << 7)
+        if hasattr(self, "rs2"):
+            base = base | (self.rs2 << 2)
+        if hasattr(self, "imm"):
+            base = base | ((0b11 & self.imm) << 5)
+            base = base | (((0b11100 & self.imm) >> 2) << 10)
+        return base
 
     def gen_insn_mask(self):
-        return self.gen_c_opfunc3_mask()
+        base = self.gen_c_opfunc3_mask()
+        if hasattr(self, "rs1"):
+            base = base | (0b111 << 7)
+        if hasattr(self, "rs2"):
+            base = base | (0b111 << 2)
+        if hasattr(self, "imm"):
+            base = base | (0b11 << 5)
+            base = base | (0b111 << 10)
+        return base 
 
     def gen_instr_assembly(self, byte_stream, info):
         raw_bits = format(byte_stream, '016b')[::-1]
@@ -736,15 +1125,41 @@ class CB_Insn(Insn):
     def __init__(self, elem):
         super().__init__(elem)
         self.funct3 = int(elem.attrib['funct3'], 16)
+        if 'rs1' in elem.attrib:
+            self.rs1 = int(elem.attrib['rs1'], 10)
+            print("Warning: Instruction specification contains rd field")
+        if 'raw_imm' in elem.attrib:
+            self.imm = int(elem.attrib['raw_imm'], 16)
+            print("Warning: Instruction specification contains imm field")
+        if 'imm' in elem.attrib:
+            self.imm = int(elem.attrib['imm'], 16)
+            print("Warning: Compressed instruction will interpret immediate \
+                values literally")
+        if 'uimm' in elem.attrib:
+            self.imm = int(elem.attrib['uimm'], 16)
+            print("Warning: Compressed instruction will interpret immediate \
+                values literally")    
         self.insn = self.gen_insn()
         self.mask = self.gen_insn_mask()
         self.len = 2
 
     def gen_insn(self):
-        return self.gen_c_opfunc3_instr()
+        base = self.gen_c_opfunc3_instr()
+        if hasattr(self, "rs1"):
+            base = base | (self.rs1 << 7)
+        if hasattr(self, "imm"):
+            base = base | ((0b1111 & self.imm) << 2)
+            base = base | (((0b1110000 & self.imm) >> 4) << 10)
+        return base
 
     def gen_insn_mask(self):
-        return self.gen_c_opfunc3_mask()
+        base = self.gen_c_opfunc3_mask()
+        if hasattr(self, "rs1"):
+            base = base | (0b111 << 7)
+        if hasattr(self, "imm"):
+            base = base | (0b1111 << 2)
+            base = base | (0b111 << 10)
+        return base 
 
     def gen_instr_assembly(self, byte_stream, info):
         raw_bits = format(byte_stream, '016b')[::-1]
@@ -771,15 +1186,33 @@ class CJ_Insn(Insn):
     def __init__(self, elem):
         super().__init__(elem)
         self.funct3 = int(elem.attrib['funct3'], 16)
+        if 'raw_imm' in elem.attrib:
+            self.imm = int(elem.attrib['raw_imm'], 16)
+            print("Warning: Instruction specification contains imm field")
+        if 'imm' in elem.attrib:
+            self.imm = int(elem.attrib['imm'], 16)
+            print("Warning: Compressed instruction will interpret immediate \
+                values literally")
+        if 'uimm' in elem.attrib:
+            self.imm = int(elem.attrib['uimm'], 16)
+            print("Warning: Compressed instruction will interpret immediate \
+                values literally")    
         self.insn = self.gen_insn()
         self.mask = self.gen_insn_mask()
         self.len = 2
 
     def gen_insn(self):
-        return self.gen_c_opfunc3_instr()
+        base = self.gen_c_opfunc3_instr()
+        if hasattr(self, "imm"):
+            base = base | (self.imm << 2)
+        return base
 
     def gen_insn_mask(self):
-        return self.gen_c_opfunc3_mask()
+        base = self.gen_c_opfunc3_mask()
+        if hasattr(self, "imm"):
+            base = base | (0b11111111111 << 2)
+
+        return base 
 
     def gen_instr_assembly(self, byte_stream, info):
         raw_bits = format(byte_stream, '016b')[::-1]
@@ -887,16 +1320,21 @@ class CustomInstructionHandler:
     def compare_with_insns(self, byte, len):
         """Compare bytes with all instructions in turn. Return the first (and
         hopefully only) matching instruction object"""
+        current_insn = None
         for insn in self._insns:
             if(self.compare_with_insn(byte, insn, len)):
-                return insn
-        return None
+                if(current_insn is None):
+                    current_insn = insn
+                if(insn.num_extra_att > current_insn.num_extra_att):
+                    current_insn = insn
+        return current_insn
 
     def compare_with_insn(self, byte, insn, len):
         """Compare bytes with a specific instruction object. If successful, return
         the relevant instruction object"""
         if(len != insn.len):
             return False
+
         return (insn.insn == (byte & insn.mask))
 
     def disassemble(self, insn, len, info):
