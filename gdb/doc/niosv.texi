@@ -140,7 +140,38 @@ are currently:
     Immediate destination, shown as a symbol
     @end table
 
+
+@item rd (optional)
+Specify a value for the rd register. Must be specified as a base 10 integer.
+
+@item rs1 (optional)
+Specify a value for the rs1 register. Must be specified as a base 10 integer.
+
+@item rs2 (optional)
+Specify a value for the rs2 register. Must be specified as a base 10 integer.
+
+@item uimm (optional)
+Specify a value for the unsigned immediate value. Matched against the literal 
+value in the target instruction. Must be specified as a hex integer.
+
+@item imm (optional)
+Specify a value for the signed immediate value. Matched against the literal 
+value in the target instruction. Must be specified as a hex integer.
+
+@item raw_imm (optional)
+Specify a value for the signed immediate value. Matched against the bits in the
+target instruction. Only used for compressed instructions. Must be specified as
+a hex integer.
+
 @end table
+
+When instructions are defined by values in non-opcode or function code fields, 
+instructions are first matched by the most specific instruction that matches
+(the one with the most non standard fields), and then by the one that occurs
+first in the XML file.
+
+Compressed instructions can only specify immediate values via raw_imm. imm or 
+uimm arguments will be interpreted as raw_imm.
 
 As an example, a valid XML file containing the specification of one
 new @samp{R} type instruction, and one new @samp{S} type instruction
